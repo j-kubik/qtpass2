@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>DatabaseView</class>
+ <widget class="QWidget" name="DatabaseView">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>983</width>
+    <height>573</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QSplitter" name="splitter">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <widget class="QTreeView" name="groupView">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="contextMenuPolicy">
+       <enum>Qt::ActionsContextMenu</enum>
+      </property>
+      <property name="acceptDrops">
+       <bool>false</bool>
+      </property>
+      <property name="dragEnabled">
+       <bool>true</bool>
+      </property>
+      <property name="dragDropMode">
+       <enum>QAbstractItemView::InternalMove</enum>
+      </property>
+      <property name="defaultDropAction">
+       <enum>Qt::IgnoreAction</enum>
+      </property>
+      <property name="rootIsDecorated">
+       <bool>true</bool>
+      </property>
+     </widget>
+     <widget class="QTreeView" name="entriesView">
+      <property name="contextMenuPolicy">
+       <enum>Qt::ActionsContextMenu</enum>
+      </property>
+      <property name="rootIsDecorated">
+       <bool>false</bool>
+      </property>
+      <property name="itemsExpandable">
+       <bool>true</bool>
+      </property>
+      <attribute name="headerStretchLastSection">
+       <bool>false</bool>
+      </attribute>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+  <action name="actionDeleteGroup">
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="icons/16x16/16x16.qrc">
+     <normaloff>:/kdbx/icons/16x16/C45.png</normaloff>:/kdbx/icons/16x16/C45.png</iconset>
+   </property>
+   <property name="text">
+    <string>Delete group</string>
+   </property>
+   <property name="shortcut">
+    <string>Del</string>
+   </property>
+  </action>
+  <action name="actionGroupProperties">
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="icons/16x16/16x16.qrc">
+     <normaloff>:/kdbx/icons/16x16/C57.png</normaloff>:/kdbx/icons/16x16/C57.png</iconset>
+   </property>
+   <property name="text">
+    <string>Properties</string>
+   </property>
+  </action>
+  <action name="actionEntryEdit">
+   <property name="text">
+    <string>Edit entry</string>
+   </property>
+   <property name="font">
+    <font>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::ApplicationSpecificRole</enum>
+   </property>
+   <property name="priority">
+    <enum>QAction::NormalPriority</enum>
+   </property>
+  </action>
+  <action name="actionEntryVersions">
+   <property name="text">
+    <string>Versions...</string>
+   </property>
+  </action>
+  <action name="actionEntryDelete">
+   <property name="icon">
+    <iconset resource="icons/16x16/16x16.qrc">
+     <normaloff>:/kdbx/icons/16x16/C45.png</normaloff>:/kdbx/icons/16x16/C45.png</iconset>
+   </property>
+   <property name="text">
+    <string>Delete entry</string>
+   </property>
+  </action>
+  <action name="actionEntryNew">
+   <property name="icon">
+    <iconset resource="icons/16x16/16x16.qrc">
+     <normaloff>:/kdbx/icons/16x16/C07.png</normaloff>:/kdbx/icons/16x16/C07.png</iconset>
+   </property>
+   <property name="text">
+    <string>New entry...</string>
+   </property>
+  </action>
+ </widget>
+ <resources>
+  <include location="icons/16x16/16x16.qrc"/>
+ </resources>
+ <connections/>
+</ui>
