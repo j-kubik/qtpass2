@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>EntryEditDialog</class>
- <widget class="QDialog" name="EntryEditDialog">
+ <class>NewEntryDialog</class>
+ <widget class="QDialog" name="NewEntryDialog">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>657</width>
-    <height>599</height>
+    <width>549</width>
+    <height>562</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Entry properties</string>
+   <string>Dialog</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
@@ -33,9 +33,9 @@
       </spacer>
      </item>
      <item>
-      <widget class="QPushButton" name="updateButton">
+      <widget class="QPushButton" name="createButton">
        <property name="text">
-        <string>Update</string>
+        <string>Create</string>
        </property>
       </widget>
      </item>
@@ -63,16 +63,16 @@
   <connection>
    <sender>cancelButton</sender>
    <signal>clicked()</signal>
-   <receiver>EntryEditDialog</receiver>
+   <receiver>NewEntryDialog</receiver>
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>601</x>
-     <y>578</y>
+     <x>487</x>
+     <y>538</y>
     </hint>
     <hint type="destinationlabel">
-     <x>606</x>
-     <y>563</y>
+     <x>504</x>
+     <y>385</y>
     </hint>
    </hints>
   </connection>

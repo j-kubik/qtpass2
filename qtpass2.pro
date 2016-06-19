@@ -18,7 +18,6 @@ TEMPLATE = app
 SOURCES += main.cpp\
         qtpasswindow.cpp \
     opendialog.cpp \
-    databaseview.cpp \
     qkdbxdatabase.cpp \
     qkdbxgroup.cpp \
     entryeditdialog.cpp \
@@ -29,11 +28,14 @@ SOURCES += main.cpp\
     utils.cpp \
     entryversionsdialog.cpp \
     icondialog.cpp \
-    undocommands.cpp
+    undocommands.cpp \
+    versioneditor.cpp \
+    qkdbxview.cpp \
+    newentrydialog.cpp \
+    databasesettings.cpp
 
 HEADERS  += qtpasswindow.h \
     opendialog.h \
-    databaseview.h \
     qkdbxdatabase.h \
     qkdbxgroup.h \
     entryeditdialog.h \
@@ -44,17 +46,24 @@ HEADERS  += qtpasswindow.h \
     entryversionsdialog.h \
     databaseviewwidget.h \
     icondialog.h \
-    undocommands.h
+    undocommands.h \
+    versioneditor.h \
+    qkdbxview.h \
+    newentrydialog.h \
+    databasesettings.h
 
 FORMS    += qtpasswindow.ui \
     opendialog.ui \
-    databaseview.ui \
     entryeditdialog.ui \
     passwordchangedialog.ui \
     passwordoptions.ui \
     passwordgenerator.ui \
     entryversionsdialog.ui \
-    icondialog.ui
+    icondialog.ui \
+    versioneditor.ui \
+    qkdbxview.ui \
+    newentrydialog.ui \
+    databasesettings.ui
 
 QMAKE_RESOURCE_FLAGS += -no-compress
 

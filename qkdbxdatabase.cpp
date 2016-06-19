@@ -143,16 +143,15 @@ Kdbx::Database::Ptr getdb(std::future<Kdbx::Database::Ptr> future){
 	return future.get();
 }
 
-QKdbxDatabase::QKdbxDatabase(Kdbx::Database::Ptr database, QObject* parent)
+QKdbxDatabase::QKdbxDatabase(Kdbx::Database::Ptr database, Kdbx::Database::File::Settings fileSettings, QObject* parent)
 	:QAbstractItemModel(parent),
 	  Kdbx::DatabaseModel<QKdbxDatabase>(std::move(database)),
+	  ffileSettings(fileSettings),
 	  ficons(new Icons(this)),
 	  fundoStack(new QUndoStack(this))
 {}
 
-QKdbxDatabase::~QKdbxDatabase() noexcept{
-	emit databaseDestroyed();
-}
+QKdbxDatabase::~QKdbxDatabase() noexcept{}
 
 QModelIndex QKdbxDatabase::root() const noexcept{
 	return index(get()->root(), 0, 0);
@@ -304,17 +303,25 @@ Kdbx::Database::Group::Ptr QKdbxDatabase::takeGroup(Kdbx::Database::Group* paren
 	return result->groupCopy();
 }
 
-void QKdbxDatabase::setProperties(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties properties){
+void QKdbxDatabase::setProperties(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr properties){
 	fundoStack->push(new GroupProperties(group, std::move(properties), this));
 }
 
-void QKdbxDatabase::setSettings(Kdbx::Database::Settings settings){
-	Kdbx::DatabaseModel<QKdbxDatabase>::setSettings(std::move(settings));
+void QKdbxDatabase::setSettings(Kdbx::Database::Settings::Ptr settings){
+	fundoStack->push(new DatabaseSettingsCommand(std::move(settings), this));
 	emit settingsChanged();
-	// ToDo: add a signal emission here...
+}
+
+void QKdbxDatabase::setSettings(Kdbx::Database::File::Settings fileSettings){
+	fundoStack->push(new DatabaseSettingsCommand(std::move(fileSettings), this));
+}
+
+void QKdbxDatabase::setSettings(Kdbx::Database::Settings::Ptr settings, Kdbx::Database::File::Settings fileSettings){
+	fundoStack->push(new DatabaseSettingsCommand(std::move(settings), std::move(fileSettings), this));
 }
 
 Kdbx::Database::Ptr QKdbxDatabase::reset(Kdbx::Database::Ptr newDatabase){
+	fundoStack->clear();
 	emit beginResetModel();
 	ficons->beginResetModel();
 	Kdbx::Database::Ptr result = DatabaseModel::reset(std::move(newDatabase));
@@ -362,7 +369,9 @@ Kdbx::Database::Entry::Ptr QKdbxDatabase::takeEntryCommand(Kdbx::Database::Group
 
 Kdbx::Database::Group* QKdbxDatabase::addGroupCommand(Kdbx::Database::Group* parent, Kdbx::Database::Group::Ptr group, size_t idx){
 	emit beginInsertRows(index(parent,0), idx, idx);
+	emit beginGroupAdd(this->group(parent), idx);
 	Kdbx::Database::Group* result = DatabaseModel::addGroup(parent, std::move(group), idx);
+	emit endGroupAdd(this->group(parent), idx);
 	emit endInsertRows();
 	return result;
 }
@@ -373,11 +382,21 @@ bool QKdbxDatabase::moveGroupCommand(Kdbx::Database::Group* oldParent, size_t ol
 
 	if (oldParent == newParent && oldIndex < newIndex){
 		for (size_t i=0; i<count; i++){
-			DatabaseModel::addGroup(newParent, DatabaseModel::takeGroup(oldParent, oldIndex), newIndex-1);
+			emit beginGroupRemove(this->group(oldParent), oldIndex);
+			Kdbx::Database::Group::Ptr tmp = DatabaseModel::takeGroup(oldParent, oldIndex);
+			emit endGroupRemove(this->group(oldParent), oldIndex);
+			emit beginGroupAdd(this->group(newParent), newIndex-1);
+			DatabaseModel::addGroup(newParent, std::move(tmp), newIndex-1);
+			emit endGroupAdd(this->group(newParent), newIndex-1);
 		}
 	}else{
 		for (size_t i=0; i<count; i++){
-			DatabaseModel::addGroup(newParent, DatabaseModel::takeGroup(oldParent, oldIndex), newIndex);
+			emit beginGroupRemove(group(oldParent), oldIndex);
+			Kdbx::Database::Group::Ptr tmp = DatabaseModel::takeGroup(oldParent, oldIndex);
+			emit endGroupRemove(group(oldParent), oldIndex);
+			emit beginGroupAdd(group(newParent), newIndex);
+			DatabaseModel::addGroup(newParent, std::move(tmp), newIndex);
+			emit endGroupAdd(group(newParent), newIndex-1);
 			newIndex++;
 		}
 	}
@@ -388,14 +407,22 @@ bool QKdbxDatabase::moveGroupCommand(Kdbx::Database::Group* oldParent, size_t ol
 
 Kdbx::Database::Group::Ptr QKdbxDatabase::takeGroupCommand(Kdbx::Database::Group* parent, size_t idx){
 	emit beginRemoveRows(index(parent, 0), idx, idx);
+	emit beginGroupRemove(group(parent), idx);
 	Kdbx::Database::Group::Ptr result = DatabaseModel::takeGroup(parent, idx);
+	emit endGroupRemove(group(parent), idx);
 	emit endRemoveRows();
 	return result;
 }
 
-void QKdbxDatabase::setPropertiesCommand(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties properties){
-	DatabaseModel::setProperties(group, std::move(properties));
+void QKdbxDatabase::setPropertiesCommand(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr& properties){
+	DatabaseModel::swapProperties(group, properties);
 	emit dataChanged(index(group, 0), index(group, columnCount(QModelIndex())-1));
+}
+
+void QKdbxDatabase::setSettingsCommand(Kdbx::Database::Settings::Ptr& settings, Kdbx::Database::File::Settings fileSettings){
+	DatabaseModel::swapSettings(settings);
+	ffileSettings = fileSettings;
+	emit settingsChanged();
 }
 
 Qt::ItemFlags QKdbxDatabase::flags(const QModelIndex & index) const noexcept{
@@ -468,8 +495,8 @@ bool QKdbxDatabase::setData(const QModelIndex &index, const QVariant &value, int
 	Group g = group(index);
 	if (!g->parent())
 		return false;
-	Kdbx::Database::Group::Properties properties = g->properties();
-	properties.name = std::string(val.data(), val.size());
+	Kdbx::Database::Group::Properties::Ptr properties(new Kdbx::Database::Group::Properties(g->properties()));
+	properties->name = std::string(val.data(), val.size());
 	g.setProperties(std::move(properties));
 	return true;
 }
@@ -650,20 +677,19 @@ bool QKdbxDatabase::dropMimeData(const QMimeData * data, Qt::DropAction action, 
 //	undoStack()->push(new GroupMove(source.item(), sourceRow, count, destination.item(), destinationChild, this));
 //	return true;
 //}
-
-
-QString QKdbxDatabase::entryString(Version entry, const char* name) noexcept{
-	SafeString<char> tmp = entryStringBuffer(entry, name).plainString();
+QString QKdbxDatabase::entryString(const Kdbx::Database::Version* version, const char* name) noexcept{
+	SafeString<char> tmp = entryStringBuffer(version, name).plainString();
 	return QString::fromUtf8(tmp.c_str(), tmp.size());
 }
 
-XorredBuffer QKdbxDatabase::entryStringBuffer(Version entry, const char* name) noexcept{
-	auto pos = entry->strings.find(name);
-	if (pos != entry->strings.end()){
+XorredBuffer QKdbxDatabase::entryStringBuffer(const Kdbx::Database::Version* version, const char* name) noexcept{
+	auto pos = version->strings.find(name);
+	if (pos != version->strings.end()){
 		return pos->second;
 	}
 	return XorredBuffer();
 }
+
 
 
 

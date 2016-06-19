@@ -1,25 +1,8 @@
-/*Copyright (C) 2016 Jaroslaw Kubik
- *
-   This file is part of QtPass2.
-
-QtPass2 is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-QtPass2 is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
-*/
 #include "qtpasswindow.h"
 #include "ui_qtpasswindow.h"
 
 #include "opendialog.h"
-#include "databaseview.h"
+#include "qkdbxview.h"
 
 #include "passwordgenerator.h"
 
@@ -35,7 +18,7 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 #include "qkdbxdatabase.h"
 
 static const char* qtPassGeometry = "QtPassGeometry";
-static const char* databaseStyles = "DatabaseStyles";
+//static const char* databaseStyles = "DatabaseStyles";
 
 QtPassWindow::QtPassWindow(QWidget *parent) :
 	QMainWindow(parent),
@@ -56,7 +39,6 @@ QtPassWindow::QtPassWindow(QWidget *parent) :
 	if (v.canConvert<QByteArray>()){
 		restoreGeometry(v.toByteArray());
 	}
-
 	//setWindowIcon(QKdbxDatabase::standardIcon(KdbxDatabase::Icon::Key));
 }
 
@@ -117,9 +99,9 @@ void QtPassWindow::onOpen_accepted(){
 		file->open(std::string(tmpBuffer.data(), tmpBuffer.size()));
 
 		Kdbx::Database::File f = Kdbx::Database::loadFromFile(std::move(file));
-		std::unique_ptr<QKdbxDatabase> db(new QKdbxDatabase(f.getDatabase(compositeKey).get(), this));
+		std::unique_ptr<QKdbxDatabase> db(new QKdbxDatabase(f.getDatabase(compositeKey).get(), f.settings, this));
 
-		addWindow(new DatabaseView(std::move(db), this));
+		addWindow(new QKdbxView(std::move(db), this));
 
 	}catch (std::exception& e){
 		QMessageBox::critical(this, "Error opening database file.", QString::fromUtf8(e.what()));
@@ -142,23 +124,7 @@ void QtPassWindow::closeEvent(QCloseEvent * event){
 
 void QtPassWindow::addWindow(DatabaseViewWidget* widget){
 	ui->tabWidget->addTab(widget, widget->icon(), widget->name());
-	QSettings s;
-	s.beginGroup(databaseStyles);
-	s.beginGroup(widget->style());
-	widget->applySettings(s);
-	//s.endGroup();
-	//s.endGroup();
 }
-
-//void QtPassWindow::on_actionDsAsDefault_triggered(){
-//  DatabaseViewWidget* widget = static_cast<DatabaseViewWidget*>(ui->tabWidget->currentWidget());
-//  if (!widget)
-//	  return;
-//  QSettings s;
-//  s.beginGroup(databaseStyles);
-//  s.beginGroup(widget->style());
-//  widget->saveSettings(s);
-//}
 
 void QtPassWindow::on_tabWidget_currentChanged(int index){
 	if (index >= 0 && index < ui->tabWidget->count()){
@@ -169,14 +135,29 @@ void QtPassWindow::on_tabWidget_currentChanged(int index){
 	}
 }
 
-void QtPassWindow::on_actionNewKdbx_triggered(){
-	std::unique_ptr<QKdbxDatabase> db(new QKdbxDatabase(Kdbx::Database::Ptr(new Kdbx::Database()), this));
-	addWindow(new DatabaseView(std::move(db), this));
+void QtPassWindow::on_actionAddEntry_triggered()
+{
+	int index = ui->tabWidget->currentIndex();
+	if (index >= 0 && index < ui->tabWidget->count()){
+		DatabaseViewWidget* w = static_cast<DatabaseViewWidget*>(ui->tabWidget->widget(index));
+		w->actionActivated(DatabaseViewWidget::NewEntry);
+	}
 }
 
-void QtPassWindow::on_actionNewEntry_triggered(){
-	DatabaseViewWidget* widget = static_cast<DatabaseViewWidget*>(ui->tabWidget->currentWidget());
-	if (!widget)
-		return;
-	widget->addEntryAction();
+void QtPassWindow::on_actionAddGroup_triggered()
+{
+	int index = ui->tabWidget->currentIndex();
+	if (index >= 0 && index < ui->tabWidget->count()){
+		DatabaseViewWidget* w = static_cast<DatabaseViewWidget*>(ui->tabWidget->widget(index));
+		w->actionActivated(DatabaseViewWidget::NewGroup);
+	}
+}
+
+void QtPassWindow::on_actionDatabaseSettings_triggered()
+{
+	int index = ui->tabWidget->currentIndex();
+	if (index >= 0 && index < ui->tabWidget->count()){
+		DatabaseViewWidget* w = static_cast<DatabaseViewWidget*>(ui->tabWidget->widget(index));
+		w->actionActivated(DatabaseViewWidget::Settings);
+	}
 }

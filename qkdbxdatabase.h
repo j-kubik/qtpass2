@@ -36,6 +36,9 @@ private:
 	Q_OBJECT
 
 	static const QString dataMimeType;
+
+	Kdbx::Database::File::Settings ffileSettings;
+
 	Icons* ficons;
 	QUndoStack* fundoStack;
 	friend class Icons;
@@ -106,9 +109,12 @@ public:
 		friend class QKdbxDatabase;
 	};
 
-	QKdbxDatabase(Kdbx::Database::Ptr database, QObject* parent=0);
-	//QKdbxDatabase(IFile file, const Kdbx::CompositeKey& key, QObject* parent=0);
+	QKdbxDatabase(Kdbx::Database::Ptr database, Kdbx::Database::File::Settings fileSettings, QObject* parent=0);
 	~QKdbxDatabase() noexcept;
+
+	const Kdbx::Database::File::Settings& fileSettings() const noexcept{
+		return ffileSettings;
+	}
 
 	QModelIndex root() const noexcept;
 
@@ -123,6 +129,7 @@ public:
 	CGroup group(const QModelIndex& index) const noexcept;
 
 	using Kdbx::DatabaseModel<QKdbxDatabase>::group;
+	using Kdbx::DatabaseModel<QKdbxDatabase>::entry;
 
 	inline QIcon icon(CVersion entry) const noexcept{
 		return icons()->icon(entry->icon);
@@ -141,6 +148,8 @@ public:
 		return fundoStack;
 	}
 
+	void saveToFile(std::unique_ptr<std::ostream> stream);
+
 protected:
 	//Kdbx::Database
 	// those nethods operate on ondo stack and not directly on the database.
@@ -154,8 +163,10 @@ protected:
 	void removeGroup(Kdbx::Database::Group* parent, size_t index) override;
 	Kdbx::Database::Group::Ptr takeGroup(Kdbx::Database::Group* parent, size_t index) override;
 
-	void setProperties(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties properties) override;
-	void setSettings(Kdbx::Database::Settings settings) override;
+	void setProperties(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr properties) override;
+	void setSettings(Kdbx::Database::Settings::Ptr settings) override;
+	void setSettings(Kdbx::Database::File::Settings fileSettings);
+	void setSettings(Kdbx::Database::Settings::Ptr settings, Kdbx::Database::File::Settings fileSettings);
 
 
 	Kdbx::Database::Ptr reset(Kdbx::Database::Ptr newDatabase)override;
@@ -171,9 +182,8 @@ protected:
 	Kdbx::Database::Group* addGroupCommand(Kdbx::Database::Group* parent, Kdbx::Database::Group::Ptr group, size_t index);
 	bool moveGroupCommand(Kdbx::Database::Group* oldParent, size_t oldIndex, size_t count, Kdbx::Database::Group* newParent, size_t newIndex);
 	Kdbx::Database::Group::Ptr takeGroupCommand(Kdbx::Database::Group* parent, size_t index);
-	void setPropertiesCommand(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties properties);
-
-
+	void setPropertiesCommand(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr& properties);
+	void setSettingsCommand(Kdbx::Database::Settings::Ptr& settings, Kdbx::Database::File::Settings fileSettings);
 public:
 
 	//QAbstractItemModel
@@ -193,13 +203,26 @@ public:
 
 	//bool moveRows(const QModelIndex &sourceParent, int sourceRow, int count, const QModelIndex &destinationParent, int destinationChild) override;
 
-	static QString entryString(Version entry, const char* name) noexcept;
-	static XorredBuffer entryStringBuffer(Version entry, const char* name) noexcept;
+	static QString entryString(const Kdbx::Database::Version* version, const char* name) noexcept;
+	static XorredBuffer entryStringBuffer(const Kdbx::Database::Version* version, const char* name) noexcept;
+
+	static inline QString entryString(Version version, const char* name) noexcept{
+		return entryString(version.get(), name);
+	}
+
+	static inline XorredBuffer entryStringBuffer(Version version, const char* name) noexcept{
+		return entryStringBuffer(version.get(), name);
+	}
 
 signals:
 	//Kdbx::Database
 	void settingsChanged();
+	void databaseChanged();
 
+	void beginGroupAdd(Group parent, size_t index);
+	void endGroupAdd(Group parent, size_t index);
+	void beginGroupRemove(Group parent, size_t index);
+	void endGroupRemove(Group parent, size_t index);
 	void beginEntryAdd(Group parent, size_t index);
 	void endEntryAdd(Group parent, size_t index);
 	void beginEntryRemove(Group parent, size_t index);
@@ -208,8 +231,6 @@ signals:
 	void endVersionAdd(Entry parent, size_t index);
 	void beginVersionRemove(Entry parent, size_t index);
 	void endVersionRemove(Entry parent, size_t index);
-
-	void databaseDestroyed();
 
 	friend class QKdbxGroup;
 	friend class DatabaseCommand;

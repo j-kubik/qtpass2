@@ -59,8 +59,13 @@ inline Kdbx::Database::Group::Ptr DatabaseCommand::takeGroup(Kdbx::Database::Gro
 }
 
 inline void DatabaseCommand::setProperties(Kdbx::Database::Group* group,
-										   Kdbx::Database::Group::Properties properties){
-	fmodel->setPropertiesCommand(group, std::move(properties));
+										   Kdbx::Database::Group::Properties::Ptr& properties){
+	fmodel->setPropertiesCommand(group, properties);
+}
+
+inline void DatabaseCommand::setSettings(Kdbx::Database::Settings::Ptr& settings,
+										 const Kdbx::Database::File::Settings& fileSettings){
+	fmodel->setSettingsCommand(settings, fileSettings);
 }
 
 
@@ -405,7 +410,7 @@ void GroupTake::undo(){
 //-----------------------------------------------------------------------------------
 
 GroupProperties::GroupProperties(Kdbx::Database::Group* group,
-		  Kdbx::Database::Group::Properties properties,
+		  Kdbx::Database::Group::Properties::Ptr properties,
 		  QKdbxDatabase* model,
 		  QUndoCommand * parent) noexcept
 	:DatabaseCommand(model, parent),
@@ -418,17 +423,50 @@ GroupProperties::GroupProperties(Kdbx::Database::Group* group,
 }
 
 void GroupProperties::redo(){
-	Kdbx::Database::Group::Properties tmp = fgroup->properties();
 	setProperties(fgroup, fproperties);
-	fproperties = std::move(tmp);
 }
 
 void GroupProperties::undo(){
-	Kdbx::Database::Group::Properties tmp = fgroup->properties();
 	setProperties(fgroup, fproperties);
-	fproperties = std::move(tmp);
 }
 
 //-----------------------------------------------------------------------------------
 
+DatabaseSettingsCommand::DatabaseSettingsCommand(Kdbx::Database::Settings::Ptr settings,
+		  QKdbxDatabase* model,
+		  QUndoCommand * parent) noexcept
+	:DatabaseSettingsCommand(std::move(settings), model->fileSettings(), model, parent)
+{}
 
+DatabaseSettingsCommand::DatabaseSettingsCommand(const Kdbx::Database::File::Settings& fileSettings,
+		  QKdbxDatabase* model,
+		  QUndoCommand * parent) noexcept
+	:DatabaseSettingsCommand(Kdbx::Database::Settings::Ptr(new Kdbx::Database::Settings(model->get()->settings())),
+					  fileSettings, model, parent)
+{}
+
+
+DatabaseSettingsCommand::DatabaseSettingsCommand(Kdbx::Database::Settings::Ptr settings,
+		  const Kdbx::Database::File::Settings& fileSettings,
+		  QKdbxDatabase* model,
+		  QUndoCommand * parent) noexcept
+	:DatabaseCommand(model, parent),
+	  fsettings(std::move(settings)),
+	  ffileSettings(fileSettings){
+	setText(QObject::tr("change database settings."));
+}
+
+
+void DatabaseSettingsCommand::redo(){
+	Kdbx::Database::File::Settings tmp = fmodel->fileSettings();
+	setSettings(fsettings, ffileSettings);
+	ffileSettings = tmp;
+}
+
+void DatabaseSettingsCommand::undo(){
+	Kdbx::Database::File::Settings tmp = fmodel->fileSettings();
+	setSettings(fsettings, ffileSettings);
+	ffileSettings = tmp;
+}
+
+//-----------------------------------------------------------------------------------

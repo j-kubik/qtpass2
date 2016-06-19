@@ -45,8 +45,9 @@ protected:
 	inline Kdbx::Database::Group::Ptr takeGroup(Kdbx::Database::Group* parent,
 												size_t index);
 	inline void setProperties(Kdbx::Database::Group* group,
-							  Kdbx::Database::Group::Properties properties);
-
+							  Kdbx::Database::Group::Properties::Ptr& properties);
+	inline void setSettings(Kdbx::Database::Settings::Ptr& settings,
+							const Kdbx::Database::File::Settings& fileSettings);
 
 	QKdbxDatabase* fmodel;
 public:
@@ -256,11 +257,34 @@ public:
 class GroupProperties: public DatabaseCommand{
 private:
 	Kdbx::Database::Group* fgroup;
-	Kdbx::Database::Group::Properties fproperties;
+	Kdbx::Database::Group::Properties::Ptr fproperties;
 public:
 
 	GroupProperties(Kdbx::Database::Group* group,
-			  Kdbx::Database::Group::Properties properties,
+			  Kdbx::Database::Group::Properties::Ptr properties,
+			  QKdbxDatabase* model,
+			  QUndoCommand * parent = 0) noexcept;
+
+	void redo() override;
+	void undo() override;
+};
+
+class DatabaseSettingsCommand: public DatabaseCommand{
+private:
+	Kdbx::Database::Settings::Ptr fsettings;
+	Kdbx::Database::File::Settings ffileSettings;
+public:
+
+	DatabaseSettingsCommand(Kdbx::Database::Settings::Ptr settings,
+			  QKdbxDatabase* model,
+			  QUndoCommand * parent = 0) noexcept;
+
+	DatabaseSettingsCommand(const Kdbx::Database::File::Settings& fileSettings,
+			  QKdbxDatabase* model,
+			  QUndoCommand * parent = 0) noexcept;
+
+	DatabaseSettingsCommand(Kdbx::Database::Settings::Ptr settings,
+			  const Kdbx::Database::File::Settings& fileSettings,
 			  QKdbxDatabase* model,
 			  QUndoCommand * parent = 0) noexcept;
 

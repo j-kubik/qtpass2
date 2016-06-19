@@ -15,8 +15,8 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "databaseview.h"
-#include "ui_databaseview.h"
+#include "qkdbxview.h"
+#include "ui_qkdbxview.h"
 
 #include "qkdbxdatabase.h"
 #include "qkdbxgroup.h"
@@ -24,14 +24,122 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 #include "entryeditdialog.h"
 #include "entryversionsdialog.h"
 
+#include "newentrydialog.h"
+#include "databasesettings.h"
+
 #include <QSortFilterProxyModel>
 #include <QMessageBox>
+#include <QString>
+#include <QToolBar>
+
+#include <libkeepass2pp/database.h>
+#include <libkeepass2pp/compositekey.h>
+
+/*class OpenOperation{
+public:
+	enum
+
+	QString filename;
+	Kdbx::Database::File file;
+	Kdbx::CompositeKey compositeKey;
+	Kdbx::Database::Ptr database;
+};
+
+class QKdbxLoader::OpenEvent: public QEvent{
+public:
+
+
+	static constexpr QEvent::Type Type = (QEvent::Type)(QEvent::User+1);
+	QString filename;
+
+	OpenEvent(QString filename)
+		:QEvent(Type),
+		  filename(filename)
+	{}
+};
+
+class QKdbxLoader::KeyEvent: public QEvent{
+public:
+	static constexpr QEvent::Type Type = (QEvent::Type)(QEvent::User+2);
+	Kdbx::CompositeKey fkey;
+	Kdbx::Database::File ffile;
+
+	KeyEvent(Kdbx::CompositeKey key, Kdbx::Database::File file)
+		:QEvent(Type),
+		  fkey(key),
+		  ffile(file)
+	{}
+};
+class QKdbxLoader::NeedKeyEvent: public QEvent{
+	static constexpr QEvent::Type Type = (QEvent::Type)(QEvent::User+3);
+	QString ffilename;
+	Kdbx::Database::File ffile;
+
+	NeedKeyEvent(QString filename, Kdbx::Database::File file)
+		:QEvent(Type),
+		  ffilename(filename),
+		  ffile(std::move(file))
+	{}
+};
+
+class QKdbxLoader::OpenedEvent: public QEvent{
+	static constexpr QEvent::Type Type = (QEvent::Type)(QEvent::User+4);
+	QString ffilename;
+
+
+	OpenedEvent(QString filename)
+		:QEvent(Type),
+		  ffilename(filename)
+	{}
+};
+
+class QKdbxLoader::ErrorEvent: public QEvent{
+	static constexpr QEvent::Type Type = (QEvent::Type)(QEvent::User+5);
+	QString message;
+
+	ErrorEvent(QString message)
+		:QEvent(Type),
+		  message(message)
+	{}
+};
+
+class QKdbxLoader::Internal: public QObject{
+public:
+	bool QKdbxLoader::event(QEvent* e) override{
+		switch (e->type()){
+		case OpenEvent::Type:{
+			OpenEvent* oe = static_cast<OpenedEvent*>(e);
+			return true;
+		}
+		}
+	}
+};
+
+QKdbxLoader::QKdbxLoader(QWidget* parent)
+	:QThread(parent),
+	  fparent(parent){
+	start();
+}
+
+bool QKdbxLoader::event(QEvent* e){
+	switch (e->type()){
+	case OpenEvent::Type:{
+		OpenEvent* oe = static_cast<OpenedEvent*>(e);
+		try{
+
+		return true;
+	}
+	}
+}
+
+void QKdbxLoader::load(QString name){}*/
+
 
 //------------------------------------------------------------------------------
 
-DatabaseView::DatabaseView(std::unique_ptr<QKdbxDatabase> db, QWidget *parent) :
+QKdbxView::QKdbxView(std::unique_ptr<QKdbxDatabase> db, QWidget *parent) :
 	DatabaseViewWidget(parent),
-	ui(new Ui::DatabaseView),
+	ui(new Ui::QKdbxView),
 	database(std::move(db)),
 	fgroup(new QKdbxGroup(database.get(), this))
 {
@@ -65,7 +173,7 @@ DatabaseView::DatabaseView(std::unique_ptr<QKdbxDatabase> db, QWidget *parent) :
 		action->setData(i);
 		action->setCheckable(true);
 		action->setChecked(!header->isSectionHidden(i));
-		connect(action, &QAction::triggered, this, &DatabaseView::headerContextMenuColumnVisibility);
+		connect(action, &QAction::triggered, this, &QKdbxView::headerContextMenuColumnVisibility);
 		header->addAction(action);
 		headerActions.push_back(action);
 
@@ -81,7 +189,7 @@ DatabaseView::DatabaseView(std::unique_ptr<QKdbxDatabase> db, QWidget *parent) :
 	action->setSeparator(true);
 	header->addAction(action);
 	action = new QAction(tr("Don't sort"), this);
-	connect(action, &QAction::triggered, this, &DatabaseView::headerContextMenuDontSort);
+	connect(action, &QAction::triggered, this, &QKdbxView::headerContextMenuDontSort);
 	header->addAction(action);
 
 	//groupHeaderPopup->addSeparator();
@@ -99,27 +207,27 @@ DatabaseView::DatabaseView(std::unique_ptr<QKdbxDatabase> db, QWidget *parent) :
 	ui->entriesView->addAction(ui->actionEntryDelete);
 
 	currentGroupChanged(ui->groupView->selectionModel()->currentIndex());
-	connect(ui->groupView->selectionModel(), &QItemSelectionModel::currentChanged, this, &DatabaseView::currentGroupChanged);
+	connect(ui->groupView->selectionModel(), &QItemSelectionModel::currentChanged, this, &QKdbxView::currentGroupChanged);
 
 	currentEntryChanged(ui->entriesView->selectionModel()->currentIndex());
-	connect(ui->entriesView->selectionModel(), &QItemSelectionModel::currentChanged, this, &DatabaseView::currentEntryChanged);
+	connect(ui->entriesView->selectionModel(), &QItemSelectionModel::currentChanged, this, &QKdbxView::currentEntryChanged);
 
 	//connect(groupHeaderPopup, &HeaderPopup::triggered, this, &DatabaseView::headerContextMenuActionTriggered);
 	//connect(header, &QHeaderView::customContextMenuRequested, this, &DatabaseView::headerContextMenuRequested);
 
-	connect(header, &QHeaderView::sectionClicked, this, &DatabaseView::headerSectionClicked);
+	connect(header, &QHeaderView::sectionClicked, this, &QKdbxView::headerSectionClicked);
 }
 
-DatabaseView::~DatabaseView()
+QKdbxView::~QKdbxView()
 {
 	delete ui;
 }
 
-QIcon DatabaseView::icon() const{
+QIcon QKdbxView::icon() const{
 	return database->icons()->icon(Kdbx::Icon(Kdbx::StandardIcon::Key));
 }
 
-QString DatabaseView::name() const{
+QString QKdbxView::name() const{
 	const std::string& name = database->get()->settings().databaseName;
 	if (name.size()){
 		return QString::fromUtf8(name.c_str(), name.size());
@@ -127,62 +235,50 @@ QString DatabaseView::name() const{
 	return tr("Unnamed");
 }
 
-QString DatabaseView::style() const{
+QString QKdbxView::style() const{
 	return "Keepass2";
 }
 
-static const char* splitterGeometry = "SplitterGeometry";
-static const char* groupViewGeometry = "groupViewGeometry";
-static const char* entryViewGeometry = "EntryViewGeometry";
-
-void DatabaseView::saveSettings(QSettings& s) const{
-	s.setValue(splitterGeometry, ui->splitter->saveState());
-	s.setValue(groupViewGeometry, ui->groupView->header()->saveState());
-	s.setValue(entryViewGeometry, ui->entriesView->header()->saveState());
-}
-
-void DatabaseView::applySettings(QSettings& s){
-	QVariant tmp = s.value(splitterGeometry);
-	if (tmp.canConvert<QByteArray>()){
-		ui->splitter->restoreState(tmp.toByteArray());
-	}
-	tmp = s.value(groupViewGeometry);
-	if (tmp.canConvert<QByteArray>()){
-		ui->groupView->header()->restoreState(tmp.toByteArray());
-	}
-	tmp = s.value(entryViewGeometry);
-
-	QHeaderView* header = ui->entriesView->header();
-	if (tmp.canConvert<QByteArray>()){
-		ui->entriesView->header()->restoreState(tmp.toByteArray());
-		for (int i=0; i<headerActions.size(); i++){
-			headerActions[i]->setChecked(!header->isSectionHidden(i));
-		}
-	}
-
-	if (header->isSortIndicatorShown()){
-		ui->entriesView->setSortingEnabled(true);
-		ui->entriesView->sortByColumn(header->sortIndicatorSection(), header->sortIndicatorOrder());
-	}
-}
-
-QUndoStack* DatabaseView::undoStack(){
+QUndoStack* QKdbxView::undoStack(){
 	return database->undoStack();
 }
 
-void DatabaseView::addEntryAction() {
-	QModelIndex index = ui->groupView->currentIndex();
-	if (!index.isValid()) return;
+DatabaseViewWidget::StandardBarActions QKdbxView::standardBarActions(){
+	StandardBarActions result = Settings;
+	Kdbx::DatabaseModel<QKdbxDatabase>::Group group = database->group(ui->groupView->currentIndex());
+	if (group){
+		result |= DatabaseViewWidget::NewEntry | DatabaseViewWidget::NewGroup;
+	}
+	return result;
+}
 
-	QKdbxDatabase::Group group = database->group(index);
+void QKdbxView::actionActivated(StandardBarAction action){
 
-	EntryEditDialog* edit = new EntryEditDialog(group, this);
-	edit->setAttribute( Qt::WA_DeleteOnClose, true );
-	edit->show();
+
+	switch (action){
+	case NewGroup:{
+		Kdbx::DatabaseModel<QKdbxDatabase>::Group group = database->group(ui->groupView->currentIndex());
+		if (!group)
+			return;
+		group.addGroup(Kdbx::Database::Group::Ptr(new Kdbx::Database::Group()), group.groups());
+		break;
+	}
+	case NewEntry:{
+		Kdbx::DatabaseModel<QKdbxDatabase>::Group group = database->group(ui->groupView->currentIndex());
+		if (!group)
+			return;
+		(new NewEntryDialog(group, this))->show();
+		break;
+	}
+	case Settings:
+		(new DatabaseSettings(database.get(), this))->show();
+	}
+
+
 }
 
 
-void DatabaseView::headerContextMenuColumnVisibility(){
+void QKdbxView::headerContextMenuColumnVisibility(){
 	QHeaderView* header = ui->entriesView->header();
 
 	QAction* action = qobject_cast<QAction*>(sender());
@@ -197,13 +293,13 @@ void DatabaseView::headerContextMenuColumnVisibility(){
 	header->setSectionHidden(idx, !action->isChecked());
 }
 
-void DatabaseView::headerContextMenuDontSort(){
+void QKdbxView::headerContextMenuDontSort(){
 	QHeaderView* header = ui->entriesView->header();
 	header->setSortIndicatorShown(false);
 	ui->entriesView->setSortingEnabled(false);
 }
 
-void DatabaseView::headerSectionClicked(int index){
+void QKdbxView::headerSectionClicked(int index){
 	unused(index);
 	QHeaderView* header = ui->entriesView->header();
 	header->setSortIndicatorShown(true);
@@ -211,7 +307,7 @@ void DatabaseView::headerSectionClicked(int index){
 	ui->entriesView->sortByColumn(header->sortIndicatorSection(), header->sortIndicatorOrder());
 }
 
-void DatabaseView::currentGroupChanged(const QModelIndex & current){
+void QKdbxView::currentGroupChanged(const QModelIndex & current){
 	bool enabled = current.isValid();
 	QKdbxDatabase::Group group = database->group(current);
 	fgroup->setGroup(group);
@@ -220,9 +316,10 @@ void DatabaseView::currentGroupChanged(const QModelIndex & current){
 	}
 	ui->actionDeleteGroup->setEnabled(enabled);
 	ui->actionGroupProperties->setEnabled(enabled);
+	emit standardBarActionsUpdated(standardBarActions());
 }
 
-void DatabaseView::currentEntryChanged(const QModelIndex & current){
+void QKdbxView::currentEntryChanged(const QModelIndex & current){
 	bool enabled = current.isValid();
 	ui->actionEntryDelete->setEnabled(enabled);
 	ui->actionEntryVersions->setEnabled(enabled);
@@ -230,7 +327,7 @@ void DatabaseView::currentEntryChanged(const QModelIndex & current){
 }
 
 
-void DatabaseView::on_entriesView_doubleClicked(const QModelIndex &index)
+void QKdbxView::on_entriesView_doubleClicked(const QModelIndex &index)
 {
 	Kdbx::DatabaseModel<QKdbxDatabase>::Entry entry = fgroup->entry(index);
 	if (!entry || !entry->versions()) return;
@@ -240,7 +337,7 @@ void DatabaseView::on_entriesView_doubleClicked(const QModelIndex &index)
 	edit->show();
 }
 
-void DatabaseView::on_actionDeleteGroup_triggered()
+void QKdbxView::on_actionDeleteGroup_triggered()
 {
 	QModelIndex index = ui->groupView->currentIndex();
 	if (!index.isValid()) return;
@@ -251,11 +348,11 @@ void DatabaseView::on_actionDeleteGroup_triggered()
 	group.remove();
 }
 
-void DatabaseView::on_actionGroupProperties_triggered(){
+void QKdbxView::on_actionGroupProperties_triggered(){
 	QMessageBox::warning(this, "Not implemented yet.", "Sorry, not implemented yet.");
 }
 
-void DatabaseView::on_actionEntryEdit_triggered()
+void QKdbxView::on_actionEntryEdit_triggered()
 {
 	QModelIndex idx = ui->entriesView->currentIndex();
 	if (!idx.isValid())
@@ -272,7 +369,7 @@ void DatabaseView::on_actionEntryEdit_triggered()
 	edit->show();
 }
 
-void DatabaseView::on_actionEntryVersions_triggered()
+void QKdbxView::on_actionEntryVersions_triggered()
 {
 	QModelIndex idx = ui->entriesView->currentIndex();
 	if (!idx.isValid())
@@ -289,7 +386,7 @@ void DatabaseView::on_actionEntryVersions_triggered()
 	versions->show();
 }
 
-void DatabaseView::on_actionEntryDelete_triggered()
+void QKdbxView::on_actionEntryDelete_triggered()
 {    //ToDo: entry title as message part?
 	if (QMessageBox::question(this, tr("Erase an entry."), tr("Are you sure?"),
 									QMessageBox::Yes|QMessageBox::No) != QMessageBox::Yes)
@@ -306,7 +403,7 @@ void DatabaseView::on_actionEntryDelete_triggered()
 	entry.remove();
 }
 
-void DatabaseView::on_actionEntryNew_triggered(){
+void QKdbxView::on_actionEntryNew_triggered(){
 
 	if (!fgroup->group())
 		return;

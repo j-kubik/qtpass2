@@ -31,7 +31,7 @@ QKdbxGroup::QKdbxGroup(QKdbxDatabase* database, QObject* parent) :
 	connect(database, &QKdbxDatabase::endVersionAdd, this, &QKdbxGroup::versionCountChanged);
 	connect(database, &QKdbxDatabase::endVersionRemove, this, &QKdbxGroup::versionCountChanged);
 	connect(database, &QKdbxDatabase::rowsAboutToBeRemoved, this, &QKdbxGroup::groupAboutRemoved);
-	connect(database, &QKdbxDatabase::databaseDestroyed, this, &QKdbxGroup::databaseDestroyed);
+	//connect(database, &QKdbxDatabase::databaseDestroyed, this, &QKdbxGroup::databaseDestroyed);
 }
 
 void QKdbxGroup::setGroup(QKdbxDatabase::Group group) noexcept{

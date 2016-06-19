@@ -21,30 +21,50 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 #include "databaseviewwidget.h"
 
 #include <libkeepass2pp/database.h>
+#include <QThread>
 #include <QMenu>
 
 namespace Ui {
-class DatabaseView;
+class QKdbxView;
 }
 
 class QKdbxDatabase;
 class QKdbxGroup;
 
-class DatabaseView : public DatabaseViewWidget{
+/*class QKdbxLoader: public QThread{
+private:
+	Q_OBJECT
+	class Internal;
+	class OpenEvent;
+	class KeyEvent;
+	class NeedKeyEvent;
+	class OpenedEvent;
+	class ErrorEvent;
+
+	QWidget* fparent;
+public:
+	QKdbxLoader(QWidget* parent);
+	bool event(QEvent* e) override;
+
+	void load(QString name);
+
+signals:
+	void newDb(DatabaseViewWidget* databaseView);
+};*/
+
+class QKdbxView : public DatabaseViewWidget{
 	Q_OBJECT
 
 public:
-	explicit DatabaseView(std::unique_ptr<QKdbxDatabase> database, QWidget *parent = 0);
-	~DatabaseView();
+	explicit QKdbxView(std::unique_ptr<QKdbxDatabase> database, QWidget *parent = 0);
+	~QKdbxView();
 
 	QIcon icon() const override;
 	QString name() const override;
 	QString style() const override;
-	void saveSettings(QSettings& s) const override;
-	void applySettings(QSettings& s) override;
 	QUndoStack* undoStack() override;
-	void addEntryAction() override;
-
+	StandardBarActions standardBarActions() override;
+	void actionActivated(StandardBarAction action) override;
 
 private slots:
 	void headerContextMenuColumnVisibility();
@@ -70,8 +90,11 @@ private slots:
 
 private:
 
-	Ui::DatabaseView *ui;
+	Ui::QKdbxView *ui;
 	std::unique_ptr<QKdbxDatabase> database;
+	QString filename;
+
+
 	QKdbxGroup* fgroup;
 	QList<QAction*> headerActions;
 };
