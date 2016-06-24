@@ -228,7 +228,7 @@ QIcon QKdbxView::icon() const{
 }
 
 QString QKdbxView::name() const{
-	const std::string& name = database->get()->settings().databaseName;
+	const std::string& name = database->get()->settings().name();
 	if (name.size()){
 		return QString::fromUtf8(name.c_str(), name.size());
 	}

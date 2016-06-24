@@ -20,16 +20,19 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <QDialog>
 #include <QFileDialog>
+#include <future>
+
+#include <libkeepass2pp/compositekey.h>
 
 namespace Ui {
 class OpenDialog;
 }
 
-class OpenDialog : public QDialog
-{
+class OpenDialog : public QDialog{
 	Q_OBJECT
 public:
-	explicit OpenDialog(QWidget *parent = 0);
+	explicit OpenDialog(std::promise<Kdbx::CompositeKey> compositePromise,
+						QWidget *parent = 0);
 	~OpenDialog();
 
 	void setOpenDbName(const QString& name);
@@ -51,9 +54,12 @@ private slots:
 	void on_keyBrowseDialog_accepted();
 
 
+	void on_OpenDialog_accepted();
+
 private:
 	Ui::OpenDialog *ui;
 	QFileDialog* dialog;
+	std::promise<Kdbx::CompositeKey> compositePromise;
 };
 
 #endif // OPENDIALOG_H

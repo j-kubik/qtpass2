@@ -19,11 +19,23 @@ public:
 	explicit DatabaseSettings(QKdbxDatabase* db, QWidget *parent = 0);
 	~DatabaseSettings();
 
+	void fromDatabase(QKdbxDatabase* db);
+	void saveDatabase();
+
 private slots:
 	void on_pushButton_clicked();
 
+	void on_recycleBinCombo_currentIndexChanged(int index);
+	void on_templatesCombo_currentIndexChanged(int index);
+
+	void drop();
+
 private:
-	Ui::DatabaseSettings *ui;
+	class MyUi;
+
+	MyUi* ui;
+
+	//Ui::DatabaseSettings *ui;
 };
 
 #endif // DATABASESETTINGS_H

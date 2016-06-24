@@ -20,10 +20,12 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <QFileDialog>
 
-OpenDialog::OpenDialog(QWidget *parent) :
+OpenDialog::OpenDialog(std::promise<Kdbx::CompositeKey> compositePromise,
+					   QWidget *parent) :
 	QDialog(parent),
 	ui(new Ui::OpenDialog),
-	dialog(0)
+	dialog(0),
+	compositePromise(std::move(compositePromise))
 {
 	ui->setupUi(this);
 	setModal(true);
@@ -87,4 +89,18 @@ void OpenDialog::on_keyBrowseDialog_accepted(){
 	ui->keyEdit->setText(files.at(0));
 }
 
+void OpenDialog::on_OpenDialog_accepted(){
+	Kdbx::CompositeKey compositeKey;
+	QString passwd = password();
+	if (passwd.size()){
+		QByteArray tmpBuffer = passwd.toUtf8();
+		compositeKey.addKey(Kdbx::CompositeKey::Key::fromPassword(std::string(tmpBuffer.data(),tmpBuffer.size())));
+	}
+	QString kFile = keyFile();
+	if (kFile.size()){
+		QByteArray tmpBuffer = kFile.toUtf8();
+		compositeKey.addKey(Kdbx::CompositeKey::Key::fromFile(std::string(tmpBuffer.data(),tmpBuffer.size())));
+	}
 
+	compositePromise.set_value(std::move(compositeKey));
+}

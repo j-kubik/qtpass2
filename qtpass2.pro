@@ -6,9 +6,10 @@
 
 QT       += core gui
 
-CONFIG += link_pkgconfig C++11
+CONFIG += link_pkgconfig
 PKGCONFIG += keepass2pp libssl
 
+QMAKE_CXXFLAGS += -std=c++1y
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -32,7 +33,9 @@ SOURCES += main.cpp\
     versioneditor.cpp \
     qkdbxview.cpp \
     newentrydialog.cpp \
-    databasesettings.cpp
+    databasesettings.cpp \
+    callback.cpp \
+    qgroupcombo.cpp
 
 HEADERS  += qtpasswindow.h \
     opendialog.h \
@@ -50,7 +53,9 @@ HEADERS  += qtpasswindow.h \
     versioneditor.h \
     qkdbxview.h \
     newentrydialog.h \
-    databasesettings.h
+    databasesettings.h \
+    callback.h \
+    qgroupcombo.h
 
 FORMS    += qtpasswindow.ui \
     opendialog.ui \

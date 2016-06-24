@@ -180,7 +180,8 @@ QModelIndex QKdbxDatabase::index(const Kdbx::Database::Group* group, int row, in
 
 QModelIndex QKdbxDatabase::index(CGroup group, int column) const noexcept{
 	if (!group)
-		return index(CGroup(), 0, column);
+		return QModelIndex();
+		//return index(CGroup(), 0, column);
 
 	CGroup parent = group.parent();
 	if (!parent)
