@@ -94,12 +94,12 @@ void OpenDialog::on_OpenDialog_accepted(){
 	QString passwd = password();
 	if (passwd.size()){
 		QByteArray tmpBuffer = passwd.toUtf8();
-		compositeKey.addKey(Kdbx::CompositeKey::Key::fromPassword(std::string(tmpBuffer.data(),tmpBuffer.size())));
+		compositeKey.addKey(Kdbx::CompositeKey::Key::fromPassword(SafeString<char>(tmpBuffer.data(),tmpBuffer.size())));
 	}
 	QString kFile = keyFile();
 	if (kFile.size()){
 		QByteArray tmpBuffer = kFile.toUtf8();
-		compositeKey.addKey(Kdbx::CompositeKey::Key::fromFile(std::string(tmpBuffer.data(),tmpBuffer.size())));
+		compositeKey.addKey(Kdbx::CompositeKey::Key::fromFile(SafeString<char>(tmpBuffer.data(),tmpBuffer.size())));
 	}
 
 	compositePromise.set_value(std::move(compositeKey));

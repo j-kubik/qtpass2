@@ -31,27 +31,6 @@ class QKdbxView;
 class QKdbxDatabase;
 class QKdbxGroup;
 
-/*class QKdbxLoader: public QThread{
-private:
-	Q_OBJECT
-	class Internal;
-	class OpenEvent;
-	class KeyEvent;
-	class NeedKeyEvent;
-	class OpenedEvent;
-	class ErrorEvent;
-
-	QWidget* fparent;
-public:
-	QKdbxLoader(QWidget* parent);
-	bool event(QEvent* e) override;
-
-	void load(QString name);
-
-signals:
-	void newDb(DatabaseViewWidget* databaseView);
-};*/
-
 class QKdbxView : public DatabaseViewWidget{
 	Q_OBJECT
 
@@ -74,6 +53,8 @@ private slots:
 	void currentGroupChanged(const QModelIndex & current);
 	void currentEntryChanged(const QModelIndex & current);
 
+	void onFrozenChanged(bool frozen);
+
 	void on_entriesView_doubleClicked(const QModelIndex &index);
 
 	void on_actionDeleteGroup_triggered();
@@ -93,7 +74,6 @@ private:
 	Ui::QKdbxView *ui;
 	std::unique_ptr<QKdbxDatabase> database;
 	QString filename;
-
 
 	QKdbxGroup* fgroup;
 	QList<QAction*> headerActions;

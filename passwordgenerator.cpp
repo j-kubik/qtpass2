@@ -25,6 +25,7 @@ PasswordGenerator::PasswordGenerator(QWidget *parent) :
 	ui(new Ui::PasswordGenerator)
 {
 	ui->setupUi(this);
+	setAttribute(Qt::WA_DeleteOnClose);
 }
 
 PasswordGenerator::~PasswordGenerator(){

@@ -143,12 +143,12 @@ Kdbx::Database::Ptr getdb(std::future<Kdbx::Database::Ptr> future){
 	return future.get();
 }
 
-QKdbxDatabase::QKdbxDatabase(Kdbx::Database::Ptr database, Kdbx::Database::File::Settings fileSettings, QObject* parent)
+QKdbxDatabase::QKdbxDatabase(Kdbx::Database::Ptr database, QObject* parent)
 	:QAbstractItemModel(parent),
 	  Kdbx::DatabaseModel<QKdbxDatabase>(std::move(database)),
-	  ffileSettings(fileSettings),
 	  ficons(new Icons(this)),
-	  fundoStack(new QUndoStack(this))
+	  fundoStack(new QUndoStack(this)),
+	  ffrozen(false)
 {}
 
 QKdbxDatabase::~QKdbxDatabase() noexcept{}
@@ -250,6 +250,22 @@ void QKdbxDatabase::moveGroup(Group group, Group newParent, size_t newIndex){
 	fundoStack->push(new GroupMove(group.parent().item(), group.index(), 1, newParent.item(), newIndex, this));
 }
 
+void QKdbxDatabase::setProperties(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr properties){
+	fundoStack->push(new GroupProperties(group, std::move(properties), this));
+}
+
+void QKdbxDatabase::setSettings(Kdbx::Database::Settings::Ptr settings){
+	fundoStack->push(new DatabaseSettingsCommand(std::move(settings), this));
+}
+
+void QKdbxDatabase::setTemplates(Group templ, std::time_t changed){
+	fundoStack->push(new SetTemplatesCommand(templ, changed, this));
+}
+
+void QKdbxDatabase::setRecycleBin(Group bin, std::time_t changed){
+	fundoStack->push(new SetRecycleBinCommand(bin, changed, this));
+}
+
 
 Kdbx::Database::Version* QKdbxDatabase::addVersion(Kdbx::Database::Entry* entry, Kdbx::Database::Version::Ptr version, size_t index){
 	VersionUpdate* result = new VersionUpdate(entry, std::move(version), index, this);
@@ -302,23 +318,6 @@ Kdbx::Database::Group::Ptr QKdbxDatabase::takeGroup(Kdbx::Database::Group* paren
 	GroupTake* result = new GroupTake(parent, index, this);
 	fundoStack->push(result);
 	return result->groupCopy();
-}
-
-void QKdbxDatabase::setProperties(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr properties){
-	fundoStack->push(new GroupProperties(group, std::move(properties), this));
-}
-
-void QKdbxDatabase::setSettings(Kdbx::Database::Settings::Ptr settings){
-	fundoStack->push(new DatabaseSettingsCommand(std::move(settings), this));
-	emit settingsChanged();
-}
-
-void QKdbxDatabase::setSettings(Kdbx::Database::File::Settings fileSettings){
-	fundoStack->push(new DatabaseSettingsCommand(std::move(fileSettings), this));
-}
-
-void QKdbxDatabase::setSettings(Kdbx::Database::Settings::Ptr settings, Kdbx::Database::File::Settings fileSettings){
-	fundoStack->push(new DatabaseSettingsCommand(std::move(settings), std::move(fileSettings), this));
 }
 
 Kdbx::Database::Ptr QKdbxDatabase::reset(Kdbx::Database::Ptr newDatabase){
@@ -420,9 +419,18 @@ void QKdbxDatabase::setPropertiesCommand(Kdbx::Database::Group* group, Kdbx::Dat
 	emit dataChanged(index(group, 0), index(group, columnCount(QModelIndex())-1));
 }
 
-void QKdbxDatabase::setSettingsCommand(Kdbx::Database::Settings::Ptr& settings, Kdbx::Database::File::Settings fileSettings){
+void QKdbxDatabase::swapSettingsCommand(Kdbx::Database::Settings::Ptr& settings){
 	DatabaseModel::swapSettings(settings);
-	ffileSettings = fileSettings;
+	emit settingsChanged();
+}
+
+void QKdbxDatabase::setTemplatesCommand(Group templ, std::time_t changed){
+	DatabaseModel::setTemplates(templ, changed);
+	emit settingsChanged();
+}
+
+void QKdbxDatabase::setRecycleBinCommand(Group bin, std::time_t changed){
+	DatabaseModel::setRecycleBin(bin, changed);
 	emit settingsChanged();
 }
 
@@ -690,6 +698,21 @@ XorredBuffer QKdbxDatabase::entryStringBuffer(const Kdbx::Database::Version* ver
 	}
 	return XorredBuffer();
 }
+
+void QKdbxDatabase::freeze(){
+	if (ffrozen != true){
+		ffrozen = true;
+		emit frozenChanged(ffrozen);
+	}
+}
+
+void QKdbxDatabase::unfreeze(){
+	if (ffrozen != false){
+		ffrozen = false;
+		emit frozenChanged(ffrozen);
+	}
+}
+
 
 
 

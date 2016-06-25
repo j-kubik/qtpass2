@@ -63,11 +63,17 @@ inline void DatabaseCommand::setProperties(Kdbx::Database::Group* group,
 	fmodel->setPropertiesCommand(group, properties);
 }
 
-inline void DatabaseCommand::setSettings(Kdbx::Database::Settings::Ptr& settings,
-										 const Kdbx::Database::File::Settings& fileSettings){
-	fmodel->setSettingsCommand(settings, fileSettings);
+inline void DatabaseCommand::swapSettings(Kdbx::Database::Settings::Ptr& settings){
+	fmodel->swapSettingsCommand(settings);
 }
 
+inline void DatabaseCommand::setTemplates(QKdbxDatabase::Group templ, std::time_t changed){
+	fmodel->setTemplatesCommand(templ, changed);
+}
+
+inline void DatabaseCommand::setRecycleBin(QKdbxDatabase::Group bin, std::time_t changed){
+	fmodel->setRecycleBinCommand(bin, changed);
+}
 
 inline DatabaseCommand::DatabaseCommand(QKdbxDatabase* model,
 										const QString& text,
@@ -435,38 +441,77 @@ void GroupProperties::undo(){
 DatabaseSettingsCommand::DatabaseSettingsCommand(Kdbx::Database::Settings::Ptr settings,
 		  QKdbxDatabase* model,
 		  QUndoCommand * parent) noexcept
-	:DatabaseSettingsCommand(std::move(settings), model->fileSettings(), model, parent)
-{}
-
-DatabaseSettingsCommand::DatabaseSettingsCommand(const Kdbx::Database::File::Settings& fileSettings,
-		  QKdbxDatabase* model,
-		  QUndoCommand * parent) noexcept
-	:DatabaseSettingsCommand(Kdbx::Database::Settings::Ptr(new Kdbx::Database::Settings(model->get()->settings())),
-					  fileSettings, model, parent)
-{}
-
-
-DatabaseSettingsCommand::DatabaseSettingsCommand(Kdbx::Database::Settings::Ptr settings,
-		  const Kdbx::Database::File::Settings& fileSettings,
-		  QKdbxDatabase* model,
-		  QUndoCommand * parent) noexcept
 	:DatabaseCommand(model, parent),
-	  fsettings(std::move(settings)),
-	  ffileSettings(fileSettings){
+	  fsettings(std::move(settings)){
 	setText(QObject::tr("change database settings."));
 }
 
 
 void DatabaseSettingsCommand::redo(){
-	Kdbx::Database::File::Settings tmp = fmodel->fileSettings();
-	setSettings(fsettings, ffileSettings);
-	ffileSettings = tmp;
+	swapSettings(fsettings);
 }
 
 void DatabaseSettingsCommand::undo(){
-	Kdbx::Database::File::Settings tmp = fmodel->fileSettings();
-	setSettings(fsettings, ffileSettings);
-	ffileSettings = tmp;
+	swapSettings(fsettings);
 }
 
 //-----------------------------------------------------------------------------------
+
+SetRecycleBinCommand::SetRecycleBinCommand(QKdbxDatabase::Group bin,
+										   std::time_t changed,
+										   QKdbxDatabase* model,
+										   QUndoCommand * parent) noexcept
+	:DatabaseCommand(model, parent),
+	  recycleBin(bin),
+	  changed(changed)
+{
+	setText(QObject::tr("Set recycle bin"));
+}
+
+void SetRecycleBinCommand::redo(){
+	QKdbxDatabase::Group tmpBin = fmodel->recycleBin();
+	std::time_t tmpChanged = fmodel->recycleBinChanged();
+	setRecycleBin(recycleBin, changed);
+	recycleBin = tmpBin;
+	changed = tmpChanged;
+}
+
+void SetRecycleBinCommand::undo(){
+	QKdbxDatabase::Group tmpBin = fmodel->recycleBin();
+	std::time_t tmpChanged = fmodel->recycleBinChanged();
+	setRecycleBin(recycleBin, changed);
+	recycleBin = tmpBin;
+	changed = tmpChanged;
+}
+
+//-----------------------------------------------------------------------------------
+
+SetTemplatesCommand::SetTemplatesCommand(QKdbxDatabase::Group bin,
+										   std::time_t changed,
+										   QKdbxDatabase* model,
+										   QUndoCommand * parent) noexcept
+	:DatabaseCommand(model, parent),
+	  templates(bin),
+	  changed(changed)
+{
+	setText(QObject::tr("Set recycle bin"));
+}
+
+void SetTemplatesCommand::redo(){
+	QKdbxDatabase::Group tmpTemplates = fmodel->templates();
+	std::time_t tmpChanged = fmodel->templatesChanged();
+	setTemplates(templates, changed);
+	templates = tmpTemplates;
+	changed = tmpChanged;
+}
+
+void SetTemplatesCommand::undo(){
+	QKdbxDatabase::Group tmpTemplates = fmodel->templates();
+	std::time_t tmpChanged = fmodel->templatesChanged();
+	setTemplates(templates, changed);
+	templates = tmpTemplates;
+	changed = tmpChanged;
+}
+
+//-----------------------------------------------------------------------------------
+

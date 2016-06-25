@@ -21,14 +21,16 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 #include <openssl/err.h>
 #include <sstream>
 
-std::vector<unsigned char> getRandomBytes(std::size_t size, QWidget*){
+#include <QMessageBox>
+
+std::vector<uint8_t> getRandomBytes(std::size_t size, QWidget* parent){
 	while (ERR_get_error());
 
 	std::vector<unsigned char> buffer(size);
 
 	int result = RAND_bytes(reinterpret_cast<unsigned char*>(buffer.data()), size);
 	if (result != 1){
-		//QMessageBox::warning(parent, "This should cause a window that gathers user input to appear.\nIt will get implemented at some point.\nI promise!!!", "Sorry, not implemented yet.");
+		QMessageBox::warning(parent, "This should show a window that gathers user input to appear.\nIt will get implemented at some point.\nI promise!!!", "Sorry, not implemented yet.");
 		std::stringstream s;
 		QByteArray arr = QObject::tr("Error generating a password.").toUtf8();
 		s.write(arr.data(), arr.size());
@@ -43,6 +45,30 @@ std::vector<unsigned char> getRandomBytes(std::size_t size, QWidget*){
 	}
 
 	return buffer;
-
 }
+
+SafeVector<uint8_t> safeGetRandomBytes(std::size_t size, QWidget* parent){
+	while (ERR_get_error());
+
+	SafeVector<uint8_t> buffer(size);
+
+	int result = RAND_bytes(reinterpret_cast<unsigned char*>(buffer.data()), size);
+	if (result != 1){
+		QMessageBox::warning(parent, "This should show a window that gathers user input to appear.\nIt will get implemented at some point.\nI promise!!!", "Sorry, not implemented yet.");
+		std::stringstream s;
+		QByteArray arr = QObject::tr("Error generating a password.").toUtf8();
+		s.write(arr.data(), arr.size());
+		s << "\n";
+		unsigned long lastError;
+		while ((lastError = ERR_get_error())){
+			char strBuf[256];
+			ERR_error_string_n(lastError, &strBuf[0], 256);
+			s << strBuf << "\n";
+		}
+		throw std::runtime_error(s.str());
+	}
+
+	return buffer;
+}
+
 

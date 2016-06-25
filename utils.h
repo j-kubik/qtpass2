@@ -21,6 +21,14 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 #include <QWidget>
 #include <vector>
 
-std::vector<unsigned char> getRandomBytes(std::size_t size, QWidget*);
+#include <libkeepass2pp/util.h>
+
+std::vector<uint8_t> getRandomBytes(std::size_t size, QWidget*);
+SafeVector<uint8_t> safeGetRandomBytes(std::size_t size, QWidget*);
+
+inline std::string utf8QString(QString s){
+	QByteArray tmp = s.toUtf8();
+	return std::string(tmp.data(), tmp.size());
+}
 
 #endif // UTILS_H

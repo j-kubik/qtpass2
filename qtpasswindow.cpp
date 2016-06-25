@@ -71,6 +71,27 @@ QtPassWindow::~QtPassWindow()
 	delete ui;
 }
 
+void QtPassWindow::updateActions(DatabaseViewWidget* w){
+	if (!w){
+		undoGroup->setActiveStack(nullptr);
+		ui->actionAddEntry->setEnabled(false);
+		ui->actionAddGroup->setEnabled(false);
+		ui->actionDatabaseSettings->setEnabled(false);
+		ui->actionSave->setEnabled(false);
+		ui->actionSaveAs->setEnabled(false);
+		ui->actionClose->setEnabled(false);
+	}else{
+		undoGroup->setActiveStack(w->undoStack());
+		DatabaseViewWidget::StandardBarActions actions = w->standardBarActions();
+		ui->actionAddEntry->setEnabled(actions.testFlag(DatabaseViewWidget::NewEntry));
+		ui->actionAddGroup->setEnabled(actions.testFlag(DatabaseViewWidget::NewGroup));
+		ui->actionDatabaseSettings->setEnabled(actions.testFlag(DatabaseViewWidget::Settings));
+		ui->actionSave->setEnabled(actions.testFlag(DatabaseViewWidget::Save));
+		ui->actionSaveAs->setEnabled(actions.testFlag(DatabaseViewWidget::SaveAs));
+		ui->actionClose->setEnabled(true);
+	}
+}
+
 void QtPassWindow::on_actionOpen_triggered()
 {
 	if (!openDbDialog){
@@ -92,6 +113,13 @@ void QtPassWindow::onOpenDb_accepted(){
 	std::thread(&doOpenAsync, callbacks.toWeakRef(), this, files.at(0)).detach();
 }
 
+void QtPassWindow::tabActionsUpdated(){
+	DatabaseViewWidget* w = static_cast<DatabaseViewWidget*>(ui->tabWidget->currentWidget());
+	if (w == sender()){
+		updateActions(w);
+	}
+}
+
 void QtPassWindow::openArgsFile(CallbackSite::WeakPtr callbacks, QtPassWindow* ths, QString password, QString keyFilePath, QString filename){
 	try{
 		QByteArray tmpBuffer = filename.toUtf8();
@@ -106,11 +134,11 @@ void QtPassWindow::openArgsFile(CallbackSite::WeakPtr callbacks, QtPassWindow* t
 			Kdbx::CompositeKey key;
 			if (!password.isEmpty()){
 				QByteArray tmpBuffer = password.toUtf8();
-				key.addKey(Kdbx::CompositeKey::Key::fromPassword(std::string(tmpBuffer.data(), tmpBuffer.size())));
+				key.addKey(Kdbx::CompositeKey::Key::fromPassword(SafeString<char>(tmpBuffer.data(), tmpBuffer.size())));
 			}
 			if (!keyFilePath.isEmpty()){
 				QByteArray tmpBuffer = keyFilePath.toUtf8();
-				key.addKey(Kdbx::CompositeKey::Key::fromFile(std::string(tmpBuffer.data(), tmpBuffer.size())));
+				key.addKey(Kdbx::CompositeKey::Key::fromFile(SafeString<char>(tmpBuffer.data(), tmpBuffer.size())));
 			}
 
 			database = dbFile.getDatabase(key);
@@ -119,7 +147,7 @@ void QtPassWindow::openArgsFile(CallbackSite::WeakPtr callbacks, QtPassWindow* t
 		}
 
 		auto newDb = [ths, &dbFile, db = database.get()](std::promise<void> promise) mutable ->void{
-			QKdbxView* view = new QKdbxView(std::make_unique<QKdbxDatabase>(std::move(db), dbFile.settings), ths);
+			QKdbxView* view = new QKdbxView(std::make_unique<QKdbxDatabase>(std::move(db)), ths);
 			ths->addWindow(view);
 			promise.set_value();
 		};
@@ -177,7 +205,7 @@ void QtPassWindow::doOpenAsync(CallbackSite::WeakPtr callbacks, QtPassWindow* th
 	}
 
 	auto newDb = [ths, &dbFile, db=database.get()](std::promise<void> promise) mutable ->void{
-		QKdbxView* view = new QKdbxView(std::make_unique<QKdbxDatabase>(std::move(db), dbFile.settings), ths);
+		QKdbxView* view = new QKdbxView(std::make_unique<QKdbxDatabase>(std::move(db)), ths);
 		ths->addWindow(view);
 		promise.set_value();
 	};
@@ -206,33 +234,26 @@ void QtPassWindow::doOpenAsync(CallbackSite::WeakPtr callbacks, QtPassWindow* th
 
 void QtPassWindow::on_actionGenerate_password_triggered(){
    PasswordGenerator* pgen = new PasswordGenerator(this);
-   pgen->setModal(true);
    pgen->show();
 }
 
 void QtPassWindow::closeEvent(QCloseEvent * event){
 	QSettings settings(this);
 	settings.setValue(qtPassGeometry, saveGeometry());
-	ui->tabWidget->widget(0);
 	QMainWindow::closeEvent(event);
 }
 
 void QtPassWindow::addWindow(DatabaseViewWidget* widget){
+	connect(widget, &DatabaseViewWidget::actionsUpdated, this, &QtPassWindow::tabActionsUpdated);
 	ui->tabWidget->addTab(widget, widget->icon(), widget->name());
 }
 
 void QtPassWindow::on_tabWidget_currentChanged(int index){
 	if (index >= 0 && index < ui->tabWidget->count()){
 		DatabaseViewWidget* w = static_cast<DatabaseViewWidget*>(ui->tabWidget->widget(index));
-		undoGroup->setActiveStack(w->undoStack());
-		ui->actionAddEntry->setEnabled(true);
-		ui->actionAddGroup->setEnabled(true);
-		ui->actionDatabaseSettings->setEnabled(true);
+		updateActions(w);
 	}else{
-		undoGroup->setActiveStack(nullptr);
-		ui->actionAddEntry->setEnabled(false);
-		ui->actionAddGroup->setEnabled(false);
-		ui->actionDatabaseSettings->setEnabled(false);
+		updateActions(nullptr);
 	}
 }
 
@@ -262,4 +283,39 @@ void QtPassWindow::on_actionDatabaseSettings_triggered(){
 
 void QtPassWindow::on_actionExit_triggered(){
 	close();
+}
+
+void QtPassWindow::on_actionSave_triggered()
+{
+	int index = ui->tabWidget->currentIndex();
+	if (index >= 0 && index < ui->tabWidget->count()){
+		DatabaseViewWidget* w = static_cast<DatabaseViewWidget*>(ui->tabWidget->widget(index));
+		w->actionActivated(DatabaseViewWidget::Save);
+	}
+}
+
+void QtPassWindow::on_actionSaveAs_triggered()
+{
+	int index = ui->tabWidget->currentIndex();
+	if (index >= 0 && index < ui->tabWidget->count()){
+		DatabaseViewWidget* w = static_cast<DatabaseViewWidget*>(ui->tabWidget->widget(index));
+		w->actionActivated(DatabaseViewWidget::SaveAs);
+	}
+}
+
+void QtPassWindow::on_actionClose_triggered(){
+	int index = ui->tabWidget->currentIndex();
+	if (index >= 0 && index < ui->tabWidget->count()){
+		QWidget* w = ui->tabWidget->widget(index);
+		ui->tabWidget->removeTab(index);
+		w->deleteLater();
+	}
+}
+
+void QtPassWindow::on_tabWidget_tabCloseRequested(int index){
+	if (index >= 0 && index < ui->tabWidget->count()){
+		QWidget* w = ui->tabWidget->widget(index);
+		ui->tabWidget->removeTab(index);
+		w->deleteLater();
+	}
 }

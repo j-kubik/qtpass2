@@ -46,9 +46,9 @@ protected:
 												size_t index);
 	inline void setProperties(Kdbx::Database::Group* group,
 							  Kdbx::Database::Group::Properties::Ptr& properties);
-	inline void setSettings(Kdbx::Database::Settings::Ptr& settings,
-							const Kdbx::Database::File::Settings& fileSettings);
-
+	inline void swapSettings(Kdbx::Database::Settings::Ptr& settings);
+	inline void setTemplates(QKdbxDatabase::Group templ, std::time_t changed);
+	inline void setRecycleBin(QKdbxDatabase::Group bin, std::time_t changed);
 	QKdbxDatabase* fmodel;
 public:
 
@@ -272,21 +272,41 @@ public:
 class DatabaseSettingsCommand: public DatabaseCommand{
 private:
 	Kdbx::Database::Settings::Ptr fsettings;
-	Kdbx::Database::File::Settings ffileSettings;
 public:
 
 	DatabaseSettingsCommand(Kdbx::Database::Settings::Ptr settings,
-			  QKdbxDatabase* model,
-			  QUndoCommand * parent = 0) noexcept;
+							QKdbxDatabase* model,
+							QUndoCommand * parent = 0) noexcept;
 
-	DatabaseSettingsCommand(const Kdbx::Database::File::Settings& fileSettings,
-			  QKdbxDatabase* model,
-			  QUndoCommand * parent = 0) noexcept;
+	void redo() override;
+	void undo() override;
+};
 
-	DatabaseSettingsCommand(Kdbx::Database::Settings::Ptr settings,
-			  const Kdbx::Database::File::Settings& fileSettings,
-			  QKdbxDatabase* model,
-			  QUndoCommand * parent = 0) noexcept;
+class SetRecycleBinCommand: public DatabaseCommand{
+private:
+	QKdbxDatabase::Group recycleBin;
+	std::time_t changed;
+public:
+
+	SetRecycleBinCommand(QKdbxDatabase::Group bin,
+						 std::time_t changed,
+						 QKdbxDatabase* model,
+						 QUndoCommand * parent = 0) noexcept;
+
+	void redo() override;
+	void undo() override;
+};
+
+class SetTemplatesCommand: public DatabaseCommand{
+private:
+	QKdbxDatabase::Group templates;
+	std::time_t changed;
+public:
+
+	SetTemplatesCommand(QKdbxDatabase::Group templates,
+						std::time_t changed,
+						QKdbxDatabase* model,
+						QUndoCommand * parent = 0) noexcept;
 
 	void redo() override;
 	void undo() override;

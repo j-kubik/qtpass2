@@ -37,10 +37,9 @@ private:
 
 	static const QString dataMimeType;
 
-	Kdbx::Database::File::Settings ffileSettings;
-
 	Icons* ficons;
 	QUndoStack* fundoStack;
+	bool ffrozen;
 	friend class Icons;
 public:
 
@@ -109,11 +108,15 @@ public:
 		friend class QKdbxDatabase;
 	};
 
-	QKdbxDatabase(Kdbx::Database::Ptr database, Kdbx::Database::File::Settings fileSettings, QObject* parent=0);
+	QKdbxDatabase(Kdbx::Database::Ptr database, QObject* parent=0);
 	~QKdbxDatabase() noexcept;
 
-	const Kdbx::Database::File::Settings& fileSettings() const noexcept{
-		return ffileSettings;
+	inline bool frozen() const noexcept{
+		return ffrozen;
+	}
+
+	inline const Kdbx::Database::Settings& settings() const noexcept{
+		return get()->settings();
 	}
 
 	QModelIndex root() const noexcept;
@@ -145,8 +148,15 @@ public:
 	void moveGroup(Group group, Group newParent, size_t newIndex);
 
 	inline QUndoStack* undoStack(){
+		if (ffrozen)
+			return nullptr;
 		return fundoStack;
 	}
+
+	void setProperties(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr properties) override;
+	void setSettings(Kdbx::Database::Settings::Ptr settings) override;
+	void setTemplates(Group templ, std::time_t changed = time(nullptr)) override;
+	void setRecycleBin(Group bin, std::time_t changed = time(nullptr)) override;
 
 	void saveToFile(std::unique_ptr<std::ostream> stream);
 
@@ -163,12 +173,6 @@ protected:
 	void removeGroup(Kdbx::Database::Group* parent, size_t index) override;
 	Kdbx::Database::Group::Ptr takeGroup(Kdbx::Database::Group* parent, size_t index) override;
 
-	void setProperties(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr properties) override;
-	void setSettings(Kdbx::Database::Settings::Ptr settings) override;
-	void setSettings(Kdbx::Database::File::Settings fileSettings);
-	void setSettings(Kdbx::Database::Settings::Ptr settings, Kdbx::Database::File::Settings fileSettings);
-
-
 	Kdbx::Database::Ptr reset(Kdbx::Database::Ptr newDatabase)override;
 
 	Kdbx::Icon addCustomIcon(Kdbx::CustomIcon::Ptr ptr) override;
@@ -183,7 +187,10 @@ protected:
 	bool moveGroupCommand(Kdbx::Database::Group* oldParent, size_t oldIndex, size_t count, Kdbx::Database::Group* newParent, size_t newIndex);
 	Kdbx::Database::Group::Ptr takeGroupCommand(Kdbx::Database::Group* parent, size_t index);
 	void setPropertiesCommand(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr& properties);
-	void setSettingsCommand(Kdbx::Database::Settings::Ptr& settings, Kdbx::Database::File::Settings fileSettings);
+	void swapSettingsCommand(Kdbx::Database::Settings::Ptr& settings);
+	void setTemplatesCommand(Group templ, std::time_t changed);
+	void setRecycleBinCommand(Group bin, std::time_t changed);
+
 public:
 
 	//QAbstractItemModel
@@ -214,10 +221,16 @@ public:
 		return entryStringBuffer(version.get(), name);
 	}
 
+private slots:
+	void freeze();
+	void unfreeze();
+
 signals:
 	//Kdbx::Database
 	void settingsChanged();
 	void databaseChanged();
+
+	void frozenChanged(bool frozen);
 
 	void beginGroupAdd(Group parent, size_t index);
 	void endGroupAdd(Group parent, size_t index);

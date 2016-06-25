@@ -212,6 +212,9 @@ QKdbxView::QKdbxView(std::unique_ptr<QKdbxDatabase> db, QWidget *parent) :
 	currentEntryChanged(ui->entriesView->selectionModel()->currentIndex());
 	connect(ui->entriesView->selectionModel(), &QItemSelectionModel::currentChanged, this, &QKdbxView::currentEntryChanged);
 
+	connect(database.get(), &QKdbxDatabase::frozenChanged, this, &QWidget::setDisabled);
+	connect(database.get(), &QKdbxDatabase::frozenChanged, this, &DatabaseViewWidget::actionsUpdated);
+
 	//connect(groupHeaderPopup, &HeaderPopup::triggered, this, &DatabaseView::headerContextMenuActionTriggered);
 	//connect(header, &QHeaderView::customContextMenuRequested, this, &DatabaseView::headerContextMenuRequested);
 
@@ -244,7 +247,10 @@ QUndoStack* QKdbxView::undoStack(){
 }
 
 DatabaseViewWidget::StandardBarActions QKdbxView::standardBarActions(){
-	StandardBarActions result = Settings;
+	if (database->frozen())
+		return DatabaseViewWidget::StandardBarActions();
+
+	StandardBarActions result = Settings | Save | SaveAs;
 	Kdbx::DatabaseModel<QKdbxDatabase>::Group group = database->group(ui->groupView->currentIndex());
 	if (group){
 		result |= DatabaseViewWidget::NewEntry | DatabaseViewWidget::NewGroup;
@@ -254,8 +260,12 @@ DatabaseViewWidget::StandardBarActions QKdbxView::standardBarActions(){
 
 void QKdbxView::actionActivated(StandardBarAction action){
 
-
 	switch (action){
+	case Save:
+		//freeze();
+		break;
+	case SaveAs:
+		break;
 	case NewGroup:{
 		Kdbx::DatabaseModel<QKdbxDatabase>::Group group = database->group(ui->groupView->currentIndex());
 		if (!group)
@@ -274,9 +284,7 @@ void QKdbxView::actionActivated(StandardBarAction action){
 		(new DatabaseSettings(database.get(), this))->show();
 	}
 
-
 }
-
 
 void QKdbxView::headerContextMenuColumnVisibility(){
 	QHeaderView* header = ui->entriesView->header();
@@ -316,7 +324,7 @@ void QKdbxView::currentGroupChanged(const QModelIndex & current){
 	}
 	ui->actionDeleteGroup->setEnabled(enabled);
 	ui->actionGroupProperties->setEnabled(enabled);
-	emit standardBarActionsUpdated(standardBarActions());
+	emit actionsUpdated();
 }
 
 void QKdbxView::currentEntryChanged(const QModelIndex & current){
@@ -324,6 +332,11 @@ void QKdbxView::currentEntryChanged(const QModelIndex & current){
 	ui->actionEntryDelete->setEnabled(enabled);
 	ui->actionEntryVersions->setEnabled(enabled);
 	ui->actionEntryEdit->setEnabled(enabled);
+}
+
+void QKdbxView::onFrozenChanged(bool frozen){
+	setDisabled(frozen);
+	emit actionsUpdated();
 }
 
 

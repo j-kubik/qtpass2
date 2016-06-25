@@ -6,6 +6,8 @@
 #include <QUndoGroup>
 
 #include "callback.h"
+#include "databaseviewwidget.h"
+
 
 class OpenDialog;
 
@@ -13,13 +15,13 @@ namespace Ui {
 class QtPassWindow;
 }
 
-class DatabaseViewWidget;
-
 class QtPassWindow : public QMainWindow{
 	Q_OBJECT
 public:
 	explicit QtPassWindow(QWidget *parent = 0);
 	~QtPassWindow();
+
+	void updateActions(DatabaseViewWidget* w);
 
 private slots:
 	void on_actionOpen_triggered();
@@ -36,6 +38,16 @@ private slots:
 	void on_actionDatabaseSettings_triggered();
 
 	void on_actionExit_triggered();
+
+	void tabActionsUpdated();
+
+	void on_actionSave_triggered();
+
+	void on_actionSaveAs_triggered();
+
+	void on_actionClose_triggered();
+
+	void on_tabWidget_tabCloseRequested(int index);
 
 private:
 	static void openArgsFile(CallbackSite::WeakPtr callbacks, QtPassWindow* ths, QString password, QString keyFilePath, QString database);

@@ -20,13 +20,16 @@ public:
 	~DatabaseSettings();
 
 	void fromDatabase(QKdbxDatabase* db);
-	void saveDatabase();
+	void toDatabase();
 
 private slots:
-	void on_pushButton_clicked();
-
 	void on_recycleBinCombo_currentIndexChanged(int index);
+
 	void on_templatesCombo_currentIndexChanged(int index);
+
+	void on_okButton_clicked();
+
+	void on_reloadButton_clicked();
 
 	void drop();
 

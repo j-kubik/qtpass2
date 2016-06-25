@@ -45,7 +45,7 @@ void PasswordChangeDialog::passwordAccepted(){
 }
 
 bool PasswordChangeDialog::checkPassword2(){
-	if (!ui->show->isChecked()){
+	if (ui->show->isChecked()){
 		ui->password2->setPalette(QPalette());
 		return true;
 	}
@@ -63,22 +63,23 @@ bool PasswordChangeDialog::checkPassword2(){
 
 void PasswordChangeDialog::onPasswordGenrated(QString pass){
 	ui->password1->setText(pass);
-	if (ui->show->isChecked()){
+	if (!ui->show->isChecked()){
 		ui->password2->setText(pass);
-		ui->password2->setPalette(QPalette());
 	}
+
+	checkPassword2();
 }
 
 
 void PasswordChangeDialog::on_show_toggled(bool checked){
 	if (checked){
 		ui->password1->setEchoMode(QLineEdit::Normal);
-		ui->password2->setEnabled(true);
-		ui->password2->setText(ui->password1->text());
-	}else{
-		ui->password1->setEchoMode(QLineEdit::Password);
 		ui->password2->setEnabled(false);
 		ui->password2->clear();
+	}else{
+		ui->password1->setEchoMode(QLineEdit::Password);
+		ui->password2->setEnabled(true);
+		ui->password2->setText(ui->password1->text());
 	}
 	checkPassword2();
 

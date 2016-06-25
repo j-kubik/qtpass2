@@ -687,7 +687,7 @@ void VersionEditor::toVersion(Kdbx::Database::Version* version){
 
 void VersionEditor::onPasswordEdited(QString pass){
 	QByteArray tmp = pass.toUtf8();
-	ui->password = XorredBuffer::fromRaw(SafeVector<uint8_t>(tmp.begin(), tmp.end()), getRandomBytes(tmp.size(), this));
+	ui->password = XorredBuffer::fromRaw(SafeVector<uint8_t>(tmp.begin(), tmp.end()), safeGetRandomBytes(tmp.size(), this));
 
 	if (ui->showPasswordButton->isChecked()){
 		ui->passwordLabel->setText(pass);

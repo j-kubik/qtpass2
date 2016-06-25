@@ -2,6 +2,7 @@
 #include "ui_databasesettings.h"
 
 #include "qkdbxdatabase.h"
+#include "utils.h"
 
 #include <QTreeView>
 
@@ -20,6 +21,9 @@ public:
 
 
 
+private slots:
+
+
 };
 
 DatabaseSettings::DatabaseSettings(QKdbxDatabase* db, QWidget *parent) :
@@ -28,6 +32,7 @@ DatabaseSettings::DatabaseSettings(QKdbxDatabase* db, QWidget *parent) :
 	ui(new MyUi)
 {
 	ui->setupUi(this);
+	ui->updateFrame->hide();
 	setAttribute(Qt::WA_DeleteOnClose);
 
 	fromDatabase(db);
@@ -42,31 +47,36 @@ void DatabaseSettings::fromDatabase(QKdbxDatabase* db){
 	if (fdb){
 		disconnect(fdb, &QKdbxDatabase::modelReset, this, &DatabaseSettings::drop);
 		disconnect(fdb, &QObject::destroyed, this, &DatabaseSettings::drop);
+		disconnect(fdb, &QKdbxDatabase::frozenChanged, this, &QWidget::setDisabled);
+		disconnect(fdb, &QKdbxDatabase::settingsChanged, ui->updateFrame, &QWidget::show);
 	}
 	fdb = db;
 	connect(fdb, &QKdbxDatabase::modelReset, this, &DatabaseSettings::drop);
 	connect(fdb, &QObject::destroyed, this, &DatabaseSettings::drop);
+	connect(fdb, &QKdbxDatabase::frozenChanged, this, &QWidget::setDisabled);
+	connect(fdb, &QKdbxDatabase::settingsChanged, ui->updateFrame, &QWidget::show);
+
+	setDisabled(fdb->frozen());
 
 	const Kdbx::Database::Settings& settings = fdb->get()->settings();
-	const Kdbx::Database::File::Settings& fileSettings = fdb->fileSettings();
 
 	ui->nameEdit->setText(QString::fromUtf8(settings.name().c_str(), settings.name().size()));
 	ui->usernameEdit->setText(QString::fromUtf8(settings.defaultUsername().c_str(), settings.defaultUsername().size()));
 	ui->descriptionEdit->document()->setPlainText(QString::fromUtf8(settings.description().c_str(), settings.description().size()));
 
-	if (fileSettings.compress && fileSettings.compression == Kdbx::Database::File::CompressionAlgorithm::GZip){
+	if (settings.fileSettings.compress && settings.fileSettings.compression == Kdbx::Database::File::CompressionAlgorithm::GZip){
 		ui->compressionCombo->setCurrentIndex(0);
 	}else{
 		ui->compressionCombo->setCurrentIndex(1);
 	}
 
-	if (fileSettings.encrypt){
+	if (settings.fileSettings.encrypt){
 		ui->encryptionCombo->setCurrentIndex(0);
 	}else{
 		ui->encryptionCombo->setCurrentIndex(1);
 	}
 
-	ui->roundsSpin->setValue(fileSettings.transformRounds);
+	ui->roundsSpin->setValue(settings.fileSettings.transformRounds);
 
 	// Following: http://qt.shoutwiki.com/wiki/Implementing_QTreeView_in_QComboBox_using_Qt-_Part_2
 	// Anyway, combobox behavior is terribly inconsistent and requires manual behavior
@@ -99,30 +109,76 @@ void DatabaseSettings::fromDatabase(QKdbxDatabase* db){
 	ui->notesBox->setChecked(settings.memoryProtection.test(Kdbx::MemoryProtection::Notes));
 }
 
-void DatabaseSettings::saveDatabase(){
-	if (!fdb)
+void DatabaseSettings::toDatabase(){
+	if (!fdb || fdb->frozen())
 		return;
 
+	Kdbx::Database::Settings::Ptr settings(new Kdbx::Database::Settings(fdb->settings()));
 
-}
+	settings->setName(utf8QString(ui->nameEdit->text()));
+	settings->setDefaultUsername(utf8QString(ui->usernameEdit->text()));
+	settings->setDescription(utf8QString(ui->descriptionEdit->document()->toPlainText()));
 
+	int compression = ui->compressionCombo->currentIndex();
+	if (compression == 0){
+		settings->fileSettings.compress = false;
+		settings->fileSettings.compression = Kdbx::Database::File::CompressionAlgorithm::GZip;
+	}else{
+		settings->fileSettings.compress = true;
+		settings->fileSettings.compression = Kdbx::Database::File::CompressionAlgorithm::None;
+	}
+	//----
 
-void DatabaseSettings::on_pushButton_clicked(){
-	saveDatabase();
+	int encryption = ui->encryptionCombo->currentIndex();
+	if (encryption == 0){
+		settings->fileSettings.encrypt = true;
+		settings->fileSettings.cipherId = Kdbx::Database::File::AES_CBC_256_UUID;
+	}else{
+		settings->fileSettings.encrypt = false;
+		settings->fileSettings.cipherId = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+	}
+
+	settings->fileSettings.transformRounds = ui->roundsSpin->value();
+
+	// ToDo: recycle bin and templates are not saved for now...
+
+	settings->historyMaxItems = ui->historyCountBox->value();
+	settings->maintenanceHistoryDays = ui->historyDaysBox->value();
+	settings->historyMaxSize = ui->historySizeBox->value()*(1024*1024);
+
+	settings->memoryProtection.set(Kdbx::MemoryProtection::Title, ui->titleBox->isChecked());
+	settings->memoryProtection.set(Kdbx::MemoryProtection::UserName, ui->usernameBox->isChecked());
+	settings->memoryProtection.set(Kdbx::MemoryProtection::Password, ui->passwordBox->isChecked());
+	settings->memoryProtection.set(Kdbx::MemoryProtection::Url, ui->urlBox->isChecked());
+	settings->memoryProtection.set(Kdbx::MemoryProtection::Notes, ui->notesBox->isChecked());
+
+	fdb->setSettings(std::move(settings));
 }
 
 void DatabaseSettings::on_recycleBinCombo_currentIndexChanged(int){
 	if (!fdb)
 		return;
 
-	//ui->recycleBin = ui->templatesCombo->view()->currentIndex();
+	ui->recycleBin = ui->templatesCombo->view()->currentIndex();
 }
 
 void DatabaseSettings::on_templatesCombo_currentIndexChanged(int){
 	if (!fdb)
 		return;
 
-	//ui->templates = ui->templatesCombo->view()->currentIndex();
+	ui->templates = ui->templatesCombo->view()->currentIndex();
+}
+
+void DatabaseSettings::on_okButton_clicked(){
+	toDatabase();
+	accept();
+}
+
+void DatabaseSettings::on_reloadButton_clicked(){
+	if (!fdb || fdb->frozen())
+		return;
+
+	fromDatabase(fdb);
 }
 
 void DatabaseSettings::drop(){

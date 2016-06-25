@@ -11,13 +11,17 @@ class DatabaseViewWidget: public QWidget{
 public:
 
 	enum StandardBarAction{
+		Save =0x1,
+		SaveAs,
 		NewEntry,
 		NewGroup,
 		Settings
 	};
 	Q_DECLARE_FLAGS( StandardBarActions, StandardBarAction)
 
-	using QWidget::QWidget;
+	inline DatabaseViewWidget(QWidget* parent=0) noexcept
+		:QWidget(parent)
+	{}
 
 	virtual QIcon icon() const =0;
 	virtual QString name() const =0;
@@ -26,8 +30,11 @@ public:
 	virtual StandardBarActions standardBarActions() =0;
 	virtual void actionActivated(StandardBarAction action)=0;
 
+protected slots:
+
 signals:
-	void standardBarActionsUpdated(StandardBarActions actions);
+	void nameChanged(QString name);
+	void actionsUpdated();
 
 };
 
