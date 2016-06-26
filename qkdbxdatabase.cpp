@@ -699,6 +699,10 @@ XorredBuffer QKdbxDatabase::entryStringBuffer(const Kdbx::Database::Version* ver
 	return XorredBuffer();
 }
 
+void QKdbxDatabase::saveAs(QString filename){
+	QMessageBox::information(0, "Saving file...", filename);
+}
+
 void QKdbxDatabase::freeze(){
 	if (ffrozen != true){
 		ffrozen = true;

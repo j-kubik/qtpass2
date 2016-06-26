@@ -11,11 +11,11 @@ class DatabaseViewWidget: public QWidget{
 public:
 
 	enum StandardBarAction{
-		Save =0x1,
-		SaveAs,
-		NewEntry,
-		NewGroup,
-		Settings
+		Save = 0x01,
+		SaveAs = 0x02,
+		NewEntry = 0x04,
+		NewGroup = 0x08,
+		Settings = 0x10
 	};
 	Q_DECLARE_FLAGS( StandardBarActions, StandardBarAction)
 
@@ -29,8 +29,6 @@ public:
 	virtual QUndoStack* undoStack() =0;
 	virtual StandardBarActions standardBarActions() =0;
 	virtual void actionActivated(StandardBarAction action)=0;
-
-protected slots:
 
 signals:
 	void nameChanged(QString name);

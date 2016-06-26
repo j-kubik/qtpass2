@@ -35,7 +35,7 @@ class QKdbxView : public DatabaseViewWidget{
 	Q_OBJECT
 
 public:
-	explicit QKdbxView(std::unique_ptr<QKdbxDatabase> database, QWidget *parent = 0);
+	explicit QKdbxView(Kdbx::Database::Ptr database, QString filename, QWidget *parent = 0);
 	~QKdbxView();
 
 	QIcon icon() const override;
@@ -72,7 +72,7 @@ private slots:
 private:
 
 	Ui::QKdbxView *ui;
-	std::unique_ptr<QKdbxDatabase> database;
+	QKdbxDatabase* database;
 	QString filename;
 
 	QKdbxGroup* fgroup;

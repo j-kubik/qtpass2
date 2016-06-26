@@ -22,7 +22,7 @@ static const char* qtPassGeometry = "QtPassGeometry";
 
 QtPassWindow::QtPassWindow(QWidget *parent) :
 	QMainWindow(parent),
-	callbacks(CallbackSite::create()),
+	executor(Executor::create(this)),
 	ui(new Ui::QtPassWindow),
 	openDbDialog(0),
 	openDialog(0),
@@ -62,7 +62,7 @@ QtPassWindow::QtPassWindow(QWidget *parent) :
 			continue;
 		}
 
-		std::thread(&openArgsFile, callbacks.toWeakRef(), this, password, key, args.at(i)).detach();
+		std::thread(&openArgsFile, executor, this, password, key, args.at(i)).detach();
 	}
 }
 
@@ -110,7 +110,7 @@ void QtPassWindow::onOpenDb_accepted(){
 	QStringList files = openDbDialog->selectedFiles();
 	if (!files.size()) return;
 
-	std::thread(&doOpenAsync, callbacks.toWeakRef(), this, files.at(0)).detach();
+	std::thread(&doOpenAsync, executor, this, files.at(0)).detach();
 }
 
 void QtPassWindow::tabActionsUpdated(){
@@ -120,7 +120,7 @@ void QtPassWindow::tabActionsUpdated(){
 	}
 }
 
-void QtPassWindow::openArgsFile(CallbackSite::WeakPtr callbacks, QtPassWindow* ths, QString password, QString keyFilePath, QString filename){
+void QtPassWindow::openArgsFile(Executor::Ptr executor, QtPassWindow* ths, QString password, QString keyFilePath, QString filename){
 	try{
 		QByteArray tmpBuffer = filename.toUtf8();
 		std::unique_ptr<std::ifstream> file(new std::ifstream());
@@ -146,23 +146,16 @@ void QtPassWindow::openArgsFile(CallbackSite::WeakPtr callbacks, QtPassWindow* t
 			database = dbFile.getDatabase();
 		}
 
-		auto newDb = [ths, &dbFile, db = database.get()](std::promise<void> promise) mutable ->void{
-			QKdbxView* view = new QKdbxView(std::make_unique<QKdbxDatabase>(std::move(db)), ths);
+		auto newDb = [ths, &dbFile, filename, db = database.get()](std::promise<void> promise) mutable ->void{
+			QKdbxView* view = new QKdbxView(std::move(db), filename, ths);
 			ths->addWindow(view);
 			promise.set_value();
 		};
 
-		CallbackSite::Ptr cs = callbacks.toStrongRef();
-		if (!cs)
-			return;
-		cs->callback<void>(std::move(newDb)).get();
+		executor->callback<void>(std::move(newDb)).get();
 
 
 	}catch(std::exception& e){
-		CallbackSite::Ptr cs = callbacks.toStrongRef();
-		if (!cs)
-			return;
-
 		QString msg =QString::fromUtf8(e.what());
 		auto errMsg = [ths, filename, msg](std::promise<void> promise)->void{
 							QMessageBox::critical(ths, QObject::tr("Error opening database."),
@@ -170,12 +163,12 @@ void QtPassWindow::openArgsFile(CallbackSite::WeakPtr callbacks, QtPassWindow* t
 							promise.set_value();
 						};
 
-		cs->callback<void>(errMsg).get();
+		executor->callback<void>(errMsg).get();
 	}
 }
 
 
-void QtPassWindow::doOpenAsync(CallbackSite::WeakPtr callbacks, QtPassWindow* ths, QString filename){
+void QtPassWindow::doOpenAsync(Executor::Ptr executor, QtPassWindow* ths, QString filename){
 	try{
 	QByteArray tmpBuffer = filename.toUtf8();
 	std::unique_ptr<std::ifstream> file(new std::ifstream());
@@ -187,39 +180,27 @@ void QtPassWindow::doOpenAsync(CallbackSite::WeakPtr callbacks, QtPassWindow* th
 	std::future<Kdbx::Database::Ptr> database;
 
 	if (dbFile.needsKey()){
-		CallbackSite::Ptr cs = callbacks.toStrongRef();
-		if (!cs)
-			return;
-
 		auto callOpenDialog	= [ths, filename](std::promise<Kdbx::CompositeKey> promise)->void{
 					OpenDialog* dlg = new OpenDialog(std::move(promise), ths);
 					dlg->show();
 				};
 
-		std::future<Kdbx::CompositeKey> key = cs->callback<Kdbx::CompositeKey>(callOpenDialog);
-		cs.clear();
+		std::future<Kdbx::CompositeKey> key = executor->callback<Kdbx::CompositeKey>(callOpenDialog);
 
 		database = dbFile.getDatabase(key.get());
 	}else{
 		database = dbFile.getDatabase();
 	}
 
-	auto newDb = [ths, &dbFile, db=database.get()](std::promise<void> promise) mutable ->void{
-		QKdbxView* view = new QKdbxView(std::make_unique<QKdbxDatabase>(std::move(db)), ths);
+	auto newDb = [ths, &dbFile, filename, db=database.get()](std::promise<void> promise) mutable ->void{
+		QKdbxView* view = new QKdbxView(std::move(db), filename, ths);
 		ths->addWindow(view);
 		promise.set_value();
 	};
 
-	CallbackSite::Ptr cs = callbacks.toStrongRef();
-	if (!cs)
-		return;
-
-	cs->callback<void>(newDb).get();
+	executor->callback<void>(newDb).get();
 
 	}catch(std::exception& e){
-		CallbackSite::Ptr cs = callbacks.toStrongRef();
-		if (!cs)
-			return;
 
 		QString msg =QString::fromUtf8(e.what());
 		auto errMsg = [ths, filename, msg](std::promise<void> promise)->void{
@@ -228,8 +209,18 @@ void QtPassWindow::doOpenAsync(CallbackSite::WeakPtr callbacks, QtPassWindow* th
 							promise.set_value();
 						};
 
-		cs->callback<void>(errMsg).get();
+		executor->callback<void>(errMsg).get();
 	}
+}
+
+void QtPassWindow::closeEvent(QCloseEvent * event){
+
+	while (ui->tabWidget->count())
+		removeWindow(0);
+
+	QSettings settings(this);
+	settings.setValue(qtPassGeometry, saveGeometry());
+	QMainWindow::closeEvent(event);
 }
 
 void QtPassWindow::on_actionGenerate_password_triggered(){
@@ -237,15 +228,16 @@ void QtPassWindow::on_actionGenerate_password_triggered(){
    pgen->show();
 }
 
-void QtPassWindow::closeEvent(QCloseEvent * event){
-	QSettings settings(this);
-	settings.setValue(qtPassGeometry, saveGeometry());
-	QMainWindow::closeEvent(event);
-}
-
 void QtPassWindow::addWindow(DatabaseViewWidget* widget){
 	connect(widget, &DatabaseViewWidget::actionsUpdated, this, &QtPassWindow::tabActionsUpdated);
 	ui->tabWidget->addTab(widget, widget->icon(), widget->name());
+}
+
+void QtPassWindow::removeWindow(int index){
+	DatabaseViewWidget* w = static_cast<DatabaseViewWidget*>(ui->tabWidget->widget(index));
+	disconnect(w, &DatabaseViewWidget::actionsUpdated, this, &QtPassWindow::tabActionsUpdated);
+	ui->tabWidget->removeTab(index);
+	w->deleteLater();
 }
 
 void QtPassWindow::on_tabWidget_currentChanged(int index){
@@ -306,16 +298,12 @@ void QtPassWindow::on_actionSaveAs_triggered()
 void QtPassWindow::on_actionClose_triggered(){
 	int index = ui->tabWidget->currentIndex();
 	if (index >= 0 && index < ui->tabWidget->count()){
-		QWidget* w = ui->tabWidget->widget(index);
-		ui->tabWidget->removeTab(index);
-		w->deleteLater();
+		removeWindow(index);
 	}
 }
 
 void QtPassWindow::on_tabWidget_tabCloseRequested(int index){
 	if (index >= 0 && index < ui->tabWidget->count()){
-		QWidget* w = ui->tabWidget->widget(index);
-		ui->tabWidget->removeTab(index);
-		w->deleteLater();
+		removeWindow(index);
 	}
 }

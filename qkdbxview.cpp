@@ -31,126 +31,27 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 #include <QMessageBox>
 #include <QString>
 #include <QToolBar>
+#include <QFileDialog>
 
 #include <libkeepass2pp/database.h>
 #include <libkeepass2pp/compositekey.h>
 
-/*class OpenOperation{
-public:
-	enum
-
-	QString filename;
-	Kdbx::Database::File file;
-	Kdbx::CompositeKey compositeKey;
-	Kdbx::Database::Ptr database;
-};
-
-class QKdbxLoader::OpenEvent: public QEvent{
-public:
-
-
-	static constexpr QEvent::Type Type = (QEvent::Type)(QEvent::User+1);
-	QString filename;
-
-	OpenEvent(QString filename)
-		:QEvent(Type),
-		  filename(filename)
-	{}
-};
-
-class QKdbxLoader::KeyEvent: public QEvent{
-public:
-	static constexpr QEvent::Type Type = (QEvent::Type)(QEvent::User+2);
-	Kdbx::CompositeKey fkey;
-	Kdbx::Database::File ffile;
-
-	KeyEvent(Kdbx::CompositeKey key, Kdbx::Database::File file)
-		:QEvent(Type),
-		  fkey(key),
-		  ffile(file)
-	{}
-};
-class QKdbxLoader::NeedKeyEvent: public QEvent{
-	static constexpr QEvent::Type Type = (QEvent::Type)(QEvent::User+3);
-	QString ffilename;
-	Kdbx::Database::File ffile;
-
-	NeedKeyEvent(QString filename, Kdbx::Database::File file)
-		:QEvent(Type),
-		  ffilename(filename),
-		  ffile(std::move(file))
-	{}
-};
-
-class QKdbxLoader::OpenedEvent: public QEvent{
-	static constexpr QEvent::Type Type = (QEvent::Type)(QEvent::User+4);
-	QString ffilename;
-
-
-	OpenedEvent(QString filename)
-		:QEvent(Type),
-		  ffilename(filename)
-	{}
-};
-
-class QKdbxLoader::ErrorEvent: public QEvent{
-	static constexpr QEvent::Type Type = (QEvent::Type)(QEvent::User+5);
-	QString message;
-
-	ErrorEvent(QString message)
-		:QEvent(Type),
-		  message(message)
-	{}
-};
-
-class QKdbxLoader::Internal: public QObject{
-public:
-	bool QKdbxLoader::event(QEvent* e) override{
-		switch (e->type()){
-		case OpenEvent::Type:{
-			OpenEvent* oe = static_cast<OpenedEvent*>(e);
-			return true;
-		}
-		}
-	}
-};
-
-QKdbxLoader::QKdbxLoader(QWidget* parent)
-	:QThread(parent),
-	  fparent(parent){
-	start();
-}
-
-bool QKdbxLoader::event(QEvent* e){
-	switch (e->type()){
-	case OpenEvent::Type:{
-		OpenEvent* oe = static_cast<OpenedEvent*>(e);
-		try{
-
-		return true;
-	}
-	}
-}
-
-void QKdbxLoader::load(QString name){}*/
-
-
 //------------------------------------------------------------------------------
 
-QKdbxView::QKdbxView(std::unique_ptr<QKdbxDatabase> db, QWidget *parent) :
+QKdbxView::QKdbxView(Kdbx::Database::Ptr db, QString filename, QWidget *parent) :
 	DatabaseViewWidget(parent),
 	ui(new Ui::QKdbxView),
-	database(std::move(db)),
-	fgroup(new QKdbxGroup(database.get(), this))
+	database(new QKdbxDatabase(std::move(db), this)),
+	filename(filename),
+	fgroup(new QKdbxGroup(database, this))
 {
 	ui->setupUi(this);
 	ui->splitter->setStretchFactor(0, 1);
 	ui->splitter->setStretchFactor(1, 2);
 
 	ui->groupView->viewport()->setAcceptDrops(true);
-	ui->groupView->setModel(database.get());
+	ui->groupView->setModel(database);
 	ui->groupView->setExpanded(database->root(), true);
-	//ui->groupView->setRootIndex(database->root());
 
 	QSortFilterProxyModel* sortModel = new QSortFilterProxyModel(this);
 	sortModel->setSourceModel(fgroup);
@@ -212,13 +113,16 @@ QKdbxView::QKdbxView(std::unique_ptr<QKdbxDatabase> db, QWidget *parent) :
 	currentEntryChanged(ui->entriesView->selectionModel()->currentIndex());
 	connect(ui->entriesView->selectionModel(), &QItemSelectionModel::currentChanged, this, &QKdbxView::currentEntryChanged);
 
-	connect(database.get(), &QKdbxDatabase::frozenChanged, this, &QWidget::setDisabled);
-	connect(database.get(), &QKdbxDatabase::frozenChanged, this, &DatabaseViewWidget::actionsUpdated);
-
 	//connect(groupHeaderPopup, &HeaderPopup::triggered, this, &DatabaseView::headerContextMenuActionTriggered);
 	//connect(header, &QHeaderView::customContextMenuRequested, this, &DatabaseView::headerContextMenuRequested);
 
 	connect(header, &QHeaderView::sectionClicked, this, &QKdbxView::headerSectionClicked);
+
+	connect(database, &QKdbxDatabase::frozenChanged, this, &QWidget::setDisabled);
+	connect(database, &QKdbxDatabase::frozenChanged, this, &DatabaseViewWidget::actionsUpdated);
+	connect(database->undoStack(), &QUndoStack::cleanChanged, this, &DatabaseViewWidget::actionsUpdated);
+
+	database->undoStack()->setClean();
 }
 
 QKdbxView::~QKdbxView()
@@ -250,7 +154,11 @@ DatabaseViewWidget::StandardBarActions QKdbxView::standardBarActions(){
 	if (database->frozen())
 		return DatabaseViewWidget::StandardBarActions();
 
-	StandardBarActions result = Settings | Save | SaveAs;
+	StandardBarActions result = Settings | SaveAs;
+
+	if (!undoStack()->isClean())
+		result |= Save;
+
 	Kdbx::DatabaseModel<QKdbxDatabase>::Group group = database->group(ui->groupView->currentIndex());
 	if (group){
 		result |= DatabaseViewWidget::NewEntry | DatabaseViewWidget::NewGroup;
@@ -262,9 +170,17 @@ void QKdbxView::actionActivated(StandardBarAction action){
 
 	switch (action){
 	case Save:
-		//freeze();
+		database->saveAs(filename);
 		break;
-	case SaveAs:
+	case SaveAs:{
+		QFileDialog* dlg = new QFileDialog(this);
+		dlg->setAttribute(Qt::WA_DeleteOnClose);
+		dlg->setAcceptMode(QFileDialog::AcceptSave);
+		dlg->setFileMode(QFileDialog::AnyFile);
+		dlg->selectFile(filename);
+		connect(dlg, &QFileDialog::fileSelected, database, &QKdbxDatabase::saveAs);
+		dlg->show();
+		}
 		break;
 	case NewGroup:{
 		Kdbx::DatabaseModel<QKdbxDatabase>::Group group = database->group(ui->groupView->currentIndex());
@@ -281,7 +197,7 @@ void QKdbxView::actionActivated(StandardBarAction action){
 		break;
 	}
 	case Settings:
-		(new DatabaseSettings(database.get(), this))->show();
+		(new DatabaseSettings(database, this))->show();
 	}
 
 }

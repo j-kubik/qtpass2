@@ -51,7 +51,7 @@ private slots:
 
 	void on_keyBrowseButton_clicked();
 
-	void on_keyBrowseDialog_accepted();
+	void onKeyBrowseDialogAccepted();
 
 
 	void on_OpenDialog_accepted();

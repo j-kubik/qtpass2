@@ -221,6 +221,9 @@ public:
 		return entryStringBuffer(version.get(), name);
 	}
 
+public slots:
+	void saveAs(QString filename);
+
 private slots:
 	void freeze();
 	void unfreeze();

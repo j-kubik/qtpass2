@@ -5,7 +5,7 @@
 #include <QFileDialog>
 #include <QUndoGroup>
 
-#include "callback.h"
+#include "executor.h"
 #include "databaseviewwidget.h"
 
 
@@ -50,14 +50,15 @@ private slots:
 	void on_tabWidget_tabCloseRequested(int index);
 
 private:
-	static void openArgsFile(CallbackSite::WeakPtr callbacks, QtPassWindow* ths, QString password, QString keyFilePath, QString database);
-	static void doOpenAsync(CallbackSite::WeakPtr callbacks, QtPassWindow* ths, QString filename);
+	static void openArgsFile(Executor::Ptr callbacks, QtPassWindow* ths, QString password, QString keyFilePath, QString database);
+	static void doOpenAsync(Executor::Ptr callbacks, QtPassWindow* ths, QString filename);
 
-	virtual void closeEvent(QCloseEvent * event) override;
+	void closeEvent(QCloseEvent * event) override;
 
 	void addWindow(DatabaseViewWidget* widget);
+	void removeWindow(int index);
 
-	CallbackSite::Ptr callbacks;
+	Executor::Ptr executor;
 
 	Ui::QtPassWindow *ui;
 	QFileDialog* openDbDialog;

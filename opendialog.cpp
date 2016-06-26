@@ -77,12 +77,12 @@ void OpenDialog::on_keyBrowseButton_clicked(){
 		dialog->setAcceptMode(QFileDialog::AcceptOpen);
 		dialog->setFileMode(QFileDialog::ExistingFile);
 		dialog->setModal(true);
-		connect(dialog, &QFileDialog::accepted, this, &OpenDialog::on_keyBrowseDialog_accepted);
+		connect(dialog, &QFileDialog::accepted, this, &OpenDialog::onKeyBrowseDialogAccepted);
 	}
 	dialog->show();
 }
 
-void OpenDialog::on_keyBrowseDialog_accepted(){
+void OpenDialog::onKeyBrowseDialogAccepted(){
 	if (!dialog) return;
 	QStringList files = dialog->selectedFiles();
 	if (!files.size()) return;

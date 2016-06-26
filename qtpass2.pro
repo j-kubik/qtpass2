@@ -34,8 +34,8 @@ SOURCES += main.cpp\
     qkdbxview.cpp \
     newentrydialog.cpp \
     databasesettings.cpp \
-    callback.cpp \
-    qgroupcombo.cpp
+    qgroupcombo.cpp \
+    executor.cpp
 
 HEADERS  += qtpasswindow.h \
     opendialog.h \
@@ -54,8 +54,8 @@ HEADERS  += qtpasswindow.h \
     qkdbxview.h \
     newentrydialog.h \
     databasesettings.h \
-    callback.h \
-    qgroupcombo.h
+    qgroupcombo.h \
+    executor.h
 
 FORMS    += qtpasswindow.ui \
     opendialog.ui \

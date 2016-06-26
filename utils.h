@@ -20,8 +20,45 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <QWidget>
 #include <vector>
+#include <atomic>
+#include <mutex>
 
 #include <libkeepass2pp/util.h>
+
+/** @brief Mutex class that doesn't throw.
+ *
+ * If it fails to aquire mutex it spin-locks instead.
+ */
+class NoexceptMutex{
+private:
+	std::mutex mutex;
+	std::atomic_flag flag;
+	bool mutexLocked;
+public:
+
+	inline NoexceptMutex() noexcept
+		:flag(ATOMIC_FLAG_INIT),
+		  mutexLocked(false)
+	{}
+
+	inline void lock() noexcept{
+		try{
+			mutex.lock();
+			while(flag.test_and_set(std::memory_order_acquire));
+			mutexLocked=true;
+		}catch(...){
+			while(flag.test_and_set(std::memory_order_acquire));
+			mutexLocked=false;
+		}
+	}
+
+	inline void unlock() noexcept{
+		if(mutexLocked)
+			mutex.unlock();
+		flag.clear(std::memory_order_release);
+	}
+};
+
 
 std::vector<uint8_t> getRandomBytes(std::size_t size, QWidget*);
 SafeVector<uint8_t> safeGetRandomBytes(std::size_t size, QWidget*);

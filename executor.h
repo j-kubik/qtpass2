@@ -1,5 +1,5 @@
-#ifndef CALLBACK_H
-#define CALLBACK_H
+#ifndef EXECUTOR_H
+#define EXECUTOR_H
 
 #include <QCoreApplication>
 #include <QSharedPointer>
@@ -7,10 +7,11 @@
 #include <future>
 #include <functional>
 
-//ToDo: callbackSite needs proper locking
+#include "utils.h"
 
-class CallbackSite: public QObject{
+class Executor{
 private:
+	class QSite;
 
 	class CallEventBase: public QEvent{
 	public:
@@ -25,13 +26,12 @@ private:
 
 	};
 
-	template <typename Result, typename Func/*, typename ...Args*/>
+	template <typename Result, typename Func>
 	class CallEvent: public CallEventBase{
 	private:
 
 		Func fcallback;
 		std::promise<Result> fpromise;
-		//std::tuple<Args...> args;
 
 		void invoke() noexcept override{
 			try{
@@ -51,20 +51,26 @@ private:
 		}
 	};
 
-	static void doDeleteLater(CallbackSite* target) noexcept;
+	Executor();
 
-	bool event(QEvent *e) override;
+	void callback(CallEventBase* event);
+
+	NoexceptMutex mutex;
+	QSite* site;
 
 public:
+	typedef std::shared_ptr<Executor> Ptr;
+	typedef std::weak_ptr<Executor> WeakPtr;
 
-	typedef QSharedPointer<CallbackSite> Ptr;
-	typedef QWeakPointer<CallbackSite> WeakPtr;
+	~Executor();
+
+	void finish();
 
 	template <typename Result, typename Func>
-	std::future<Result> callback(Func&& func) noexcept{
+	std::future<Result> callback(Func&& func){
 		auto event = new CallEvent<Result, Func>(std::forward<Func>(func));
 		std::future<Result> result = event->get_future();
-		QCoreApplication::postEvent(this, event);
+		callback(event);
 		return result;
 	}
 
@@ -74,9 +80,9 @@ public:
 		return callback(std::bind(std::forward<Func>(func), _1, std::forward<T>(t), std::forward<Args>(args)...));
 	}
 
+	static Ptr create(QObject* parent = 0);
 
-	static Ptr create();
-
+	friend class QSite;
 };
 
-#endif // CALLBACK_H
+#endif // EXECUTOR_H
