@@ -27,11 +27,9 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 #include "icondialog.h"
 
 #include <QToolTip>
-
-
 #include <QStringListModel>
 
-EntryEditDialog::EntryEditDialog(Kdbx::DatabaseModel<QKdbxDatabase>::Version version , QWidget *parent) :
+EntryEditDialog::EntryEditDialog(QKdbxDatabase::Version version , QWidget *parent) :
 	QDialog(parent),
 	fdb(version.model()),
 	fversion(new Kdbx::Database::Version(*version.get())),

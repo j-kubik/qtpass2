@@ -620,7 +620,7 @@ void VersionEditor::fromVersion(QKdbxDatabase* dbx, const Uuid& uuid, const Kdbx
 	ui->usageCountLabel->setText(QString("%1").arg(ui->times.usageCount));
 }
 
-void VersionEditor::fromVersion(Kdbx::DatabaseModel<QKdbxDatabase>::Version version){
+void VersionEditor::fromVersion(QKdbxDatabase::Version version){
 	fromVersion(version.model(), version.parent()->uuid(), version.get());
 }
 

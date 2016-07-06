@@ -20,17 +20,11 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <QDialog>
 
-#include <libkeepass2pp/databasemodel.h>
-
-#include <QAbstractTableModel>
-//#include <QTreeView>
+#include "qkdbxdatabase.h"
 
 namespace Ui {
 class EntryEditDialog;
 }
-
-class QKdbxGroup;
-class QKdbxDatabase;
 
 class EntryEditDialog : public QDialog{
 private:
@@ -40,7 +34,7 @@ private:
 	Uuid fuuid;
 
 public:
-	explicit EntryEditDialog(Kdbx::DatabaseModel<QKdbxDatabase>::Version version, QWidget *parent = 0);
+	explicit EntryEditDialog(QKdbxDatabase::Version version, QWidget *parent = 0);
 
 	~EntryEditDialog();
 

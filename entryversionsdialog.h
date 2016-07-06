@@ -21,7 +21,7 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 #include <QDialog>
 #include <QAbstractTableModel>
 
-#include <libkeepass2pp/databasemodel.h>
+#include "qkdbxdatabase.h"
 
 namespace Ui {
 class EntryVersionsDialog;
@@ -33,7 +33,7 @@ class EntryVersionsModel: public QAbstractTableModel{
 	Q_OBJECT
 public:
 
-	EntryVersionsModel(Kdbx::DatabaseModel<QKdbxDatabase>::Entry entry, QObject* parent);
+	EntryVersionsModel(QKdbxDatabase::Entry entry, QObject* parent);
 
 	Qt::ItemFlags flags(const QModelIndex & index) const override;
 	QVariant data(const QModelIndex & index, int role) const override;
@@ -42,24 +42,24 @@ public:
 	int columnCount(const QModelIndex & parent) const override;
 
 
-	inline const Kdbx::DatabaseModel<QKdbxDatabase>::Entry& entry() const noexcept{
+	inline const QKdbxDatabase::Entry& entry() const noexcept{
 		return fentry;
 	}
 
-	inline Kdbx::DatabaseModel<QKdbxDatabase>::Version version(const QModelIndex& index) const noexcept{
+	inline QKdbxDatabase::Version version(const QModelIndex& index) const noexcept{
 		return fentry.version(index.row());
 	}
 
 private slots:
 	void groupRemoved(QModelIndex index, int begin, int end);
-	void entryRemove(Kdbx::DatabaseModel<QKdbxDatabase>::Group parent, size_t index);
-	void beginVersionAdd(Kdbx::DatabaseModel<QKdbxDatabase>::Entry entry, size_t index);
-	void endVersionAdd(Kdbx::DatabaseModel<QKdbxDatabase>::Entry entry, size_t index);
-	void beginVersionRemove(Kdbx::DatabaseModel<QKdbxDatabase>::Entry entry, size_t index);
-	void endVersionRemove(Kdbx::DatabaseModel<QKdbxDatabase>::Entry entry, size_t index);
+	void entryRemove(QKdbxDatabase::Group parent, size_t index);
+	void beginVersionAdd(QKdbxDatabase::Entry entry, size_t index);
+	void endVersionAdd(QKdbxDatabase::Entry entry, size_t index);
+	void beginVersionRemove(QKdbxDatabase::Entry entry, size_t index);
+	void endVersionRemove(QKdbxDatabase::Entry entry, size_t index);
 
 private:
-	Kdbx::DatabaseModel<QKdbxDatabase>::Entry fentry;
+	QKdbxDatabase::Entry fentry;
 };
 
 
@@ -68,7 +68,7 @@ class EntryVersionsDialog : public QDialog
 	Q_OBJECT
 
 public:
-	explicit EntryVersionsDialog(Kdbx::DatabaseModel<QKdbxDatabase>::Entry entry, QWidget *parent = 0);
+	explicit EntryVersionsDialog(QKdbxDatabase::Entry entry, QWidget *parent = 0);
 	~EntryVersionsDialog();
 
 

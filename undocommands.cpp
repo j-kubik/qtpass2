@@ -58,7 +58,7 @@ inline Kdbx::Database::Group::Ptr DatabaseCommand::takeGroup(Kdbx::Database::Gro
 	return fmodel->takeGroupCommand(parent, index);
 }
 
-inline void DatabaseCommand::setProperties(Kdbx::Database::Group* group,
+inline void DatabaseCommand::setProperties(const Kdbx::Database::Group* group,
 										   Kdbx::Database::Group::Properties::Ptr& properties){
 	fmodel->setPropertiesCommand(group, properties);
 }
@@ -67,11 +67,11 @@ inline void DatabaseCommand::swapSettings(Kdbx::Database::Settings::Ptr& setting
 	fmodel->swapSettingsCommand(settings);
 }
 
-inline void DatabaseCommand::setTemplates(QKdbxDatabase::Group templ, std::time_t changed){
+inline void DatabaseCommand::setTemplates(const Kdbx::Database::Group* templ, std::time_t changed){
 	fmodel->setTemplatesCommand(templ, changed);
 }
 
-inline void DatabaseCommand::setRecycleBin(QKdbxDatabase::Group bin, std::time_t changed){
+inline void DatabaseCommand::setRecycleBin(const Kdbx::Database::Group* bin, std::time_t changed){
 	fmodel->setRecycleBinCommand(bin, changed);
 }
 
@@ -415,7 +415,7 @@ void GroupTake::undo(){
 
 //-----------------------------------------------------------------------------------
 
-GroupProperties::GroupProperties(Kdbx::Database::Group* group,
+GroupProperties::GroupProperties(const Kdbx::Database::Group* group,
 		  Kdbx::Database::Group::Properties::Ptr properties,
 		  QKdbxDatabase* model,
 		  QUndoCommand * parent) noexcept
@@ -457,7 +457,7 @@ void DatabaseSettingsCommand::undo(){
 
 //-----------------------------------------------------------------------------------
 
-SetRecycleBinCommand::SetRecycleBinCommand(QKdbxDatabase::Group bin,
+SetRecycleBinCommand::SetRecycleBinCommand(const Kdbx::Database::Group* bin,
 										   std::time_t changed,
 										   QKdbxDatabase* model,
 										   QUndoCommand * parent) noexcept
@@ -469,7 +469,7 @@ SetRecycleBinCommand::SetRecycleBinCommand(QKdbxDatabase::Group bin,
 }
 
 void SetRecycleBinCommand::redo(){
-	QKdbxDatabase::Group tmpBin = fmodel->recycleBin();
+	const Kdbx::Database::Group* tmpBin = fmodel->recycleBin();
 	std::time_t tmpChanged = fmodel->recycleBinChanged();
 	setRecycleBin(recycleBin, changed);
 	recycleBin = tmpBin;
@@ -477,7 +477,7 @@ void SetRecycleBinCommand::redo(){
 }
 
 void SetRecycleBinCommand::undo(){
-	QKdbxDatabase::Group tmpBin = fmodel->recycleBin();
+	const Kdbx::Database::Group* tmpBin = fmodel->recycleBin();
 	std::time_t tmpChanged = fmodel->recycleBinChanged();
 	setRecycleBin(recycleBin, changed);
 	recycleBin = tmpBin;
@@ -486,19 +486,19 @@ void SetRecycleBinCommand::undo(){
 
 //-----------------------------------------------------------------------------------
 
-SetTemplatesCommand::SetTemplatesCommand(QKdbxDatabase::Group bin,
-										   std::time_t changed,
-										   QKdbxDatabase* model,
-										   QUndoCommand * parent) noexcept
+SetTemplatesCommand::SetTemplatesCommand(const Kdbx::Database::Group* templates,
+										 std::time_t changed,
+										 QKdbxDatabase* model,
+										 QUndoCommand * parent) noexcept
 	:DatabaseCommand(model, parent),
-	  templates(bin),
+	  templates(templates),
 	  changed(changed)
 {
 	setText(QObject::tr("Set recycle bin"));
 }
 
 void SetTemplatesCommand::redo(){
-	QKdbxDatabase::Group tmpTemplates = fmodel->templates();
+	const Kdbx::Database::Group* tmpTemplates = fmodel->templates();
 	std::time_t tmpChanged = fmodel->templatesChanged();
 	setTemplates(templates, changed);
 	templates = tmpTemplates;
@@ -506,7 +506,7 @@ void SetTemplatesCommand::redo(){
 }
 
 void SetTemplatesCommand::undo(){
-	QKdbxDatabase::Group tmpTemplates = fmodel->templates();
+	const Kdbx::Database::Group* tmpTemplates = fmodel->templates();
 	std::time_t tmpChanged = fmodel->templatesChanged();
 	setTemplates(templates, changed);
 	templates = tmpTemplates;

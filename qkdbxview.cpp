@@ -51,7 +51,7 @@ QKdbxView::QKdbxView(Kdbx::Database::Ptr db, QString filename, QWidget *parent) 
 
 	ui->groupView->viewport()->setAcceptDrops(true);
 	ui->groupView->setModel(database);
-	ui->groupView->setExpanded(database->root(), true);
+	ui->groupView->setExpanded(database->rootIndex(), true);
 
 	QSortFilterProxyModel* sortModel = new QSortFilterProxyModel(this);
 	sortModel->setSourceModel(fgroup);
@@ -159,7 +159,7 @@ DatabaseViewWidget::StandardBarActions QKdbxView::standardBarActions(){
 	if (!undoStack()->isClean())
 		result |= Save;
 
-	Kdbx::DatabaseModel<QKdbxDatabase>::Group group = database->group(ui->groupView->currentIndex());
+	QKdbxDatabase::Group group = database->group(ui->groupView->currentIndex());
 	if (group){
 		result |= DatabaseViewWidget::NewEntry | DatabaseViewWidget::NewGroup;
 	}
@@ -183,14 +183,14 @@ void QKdbxView::actionActivated(StandardBarAction action){
 		}
 		break;
 	case NewGroup:{
-		Kdbx::DatabaseModel<QKdbxDatabase>::Group group = database->group(ui->groupView->currentIndex());
+		QKdbxDatabase::Group group = database->group(ui->groupView->currentIndex());
 		if (!group)
 			return;
 		group.addGroup(Kdbx::Database::Group::Ptr(new Kdbx::Database::Group()), group.groups());
 		break;
 	}
 	case NewEntry:{
-		Kdbx::DatabaseModel<QKdbxDatabase>::Group group = database->group(ui->groupView->currentIndex());
+		QKdbxDatabase::Group group = database->group(ui->groupView->currentIndex());
 		if (!group)
 			return;
 		(new NewEntryDialog(group, this))->show();
@@ -258,7 +258,7 @@ void QKdbxView::onFrozenChanged(bool frozen){
 
 void QKdbxView::on_entriesView_doubleClicked(const QModelIndex &index)
 {
-	Kdbx::DatabaseModel<QKdbxDatabase>::Entry entry = fgroup->entry(index);
+	QKdbxDatabase::Entry entry = fgroup->entry(index);
 	if (!entry || !entry->versions()) return;
 
 	EntryEditDialog* edit = new EntryEditDialog(entry.latest(), this);
@@ -287,7 +287,7 @@ void QKdbxView::on_actionEntryEdit_triggered()
 	if (!idx.isValid())
 		return;
 
-	Kdbx::DatabaseModel<QKdbxDatabase>::Entry entry = fgroup->entry(idx);
+	QKdbxDatabase::Entry entry = fgroup->entry(idx);
 	if (!entry)
 		return;
 

@@ -21,21 +21,21 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 #include <libkeepass2pp/databasemodel.h>
 #include <QAbstractTableModel>
 
-class QKdbxDatabase;
+#include "qkdbxdatabase.h"
 
 class QKdbxGroup : public QAbstractTableModel{
 	Q_OBJECT
 private:
-	Kdbx::DatabaseModel<QKdbxDatabase>::Group fgroup;
+	QKdbxDatabase::Group fgroup;
 
 public:
 	explicit QKdbxGroup(QKdbxDatabase* database, QObject* parent);
 
-	inline Kdbx::DatabaseModel<QKdbxDatabase>::Group group() noexcept{
+	inline QKdbxDatabase::Group group() noexcept{
 		return fgroup;
 	}
 
-	void setGroup(Kdbx::DatabaseModel<QKdbxDatabase>::Group group) noexcept;
+	void setGroup(QKdbxDatabase::Group group) noexcept;
 
 	QIcon icon() noexcept;
 
@@ -45,20 +45,20 @@ public:
 	int rowCount(const QModelIndex & parent) const override;
 	int columnCount(const QModelIndex & parent) const override;
 
-	Kdbx::DatabaseModel<QKdbxDatabase>::Entry entry(const QModelIndex& index) const noexcept;
-	Kdbx::DatabaseModel<QKdbxDatabase>::Version latest(const QModelIndex& index) const noexcept;
+	QKdbxDatabase::Entry entry(const QModelIndex& index) const noexcept;
+	QKdbxDatabase::Version latest(const QModelIndex& index) const noexcept;
 
 signals:
 
 private:
 
 private slots:
-	void beginEntryAdd(Kdbx::DatabaseModel<QKdbxDatabase>::Group parent, size_t index);
-	void endEntryAdd(Kdbx::DatabaseModel<QKdbxDatabase>::Group parent, size_t index);
-	void beginEntryRemove(Kdbx::DatabaseModel<QKdbxDatabase>::Group parent, size_t index);
-	void endEntryRemove(Kdbx::DatabaseModel<QKdbxDatabase>::Group parent, size_t index);
+	void beginEntryAdd(QKdbxDatabase::Group parent, size_t index);
+	void endEntryAdd(QKdbxDatabase::Group parent, size_t index);
+	void beginEntryRemove(QKdbxDatabase::Group parent, size_t index);
+	void endEntryRemove(QKdbxDatabase::Group parent, size_t index);
 
-	void versionCountChanged(Kdbx::DatabaseModel<QKdbxDatabase>::Entry entry);
+	void versionCountChanged(QKdbxDatabase::Entry entry);
 	void groupAboutRemoved(const QModelIndex& index, int first, int last);
 
 	void databaseDestroyed();

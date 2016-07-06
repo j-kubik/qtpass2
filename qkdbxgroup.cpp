@@ -22,7 +22,7 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 
 QKdbxGroup::QKdbxGroup(QKdbxDatabase* database, QObject* parent) :
 	QAbstractTableModel(parent),
-	fgroup(database->rootGroup())
+	fgroup(database->root())
 {
 	connect(database, &QKdbxDatabase::beginEntryAdd, this, &QKdbxGroup::beginEntryAdd);
 	connect(database, &QKdbxDatabase::endEntryAdd, this, &QKdbxGroup::endEntryAdd);
@@ -46,7 +46,7 @@ QIcon QKdbxGroup::icon() noexcept{
 	if (!fgroup)
 		return QIcon();
 
-	return fgroup.model()->icon(QKdbxDatabase::CGroup(fgroup));
+	return fgroup.model()->icon(fgroup);
 }
 
 Qt::ItemFlags QKdbxGroup::flags(const QModelIndex & index) const{
@@ -58,7 +58,7 @@ QVariant QKdbxGroup::data(const QModelIndex & index, int role) const{
 	if (!fgroup || !index.isValid() || index.row() >= int(fgroup->entries()))
 		return QVariant();
 
-	const Kdbx::DatabaseModel<QKdbxDatabase>::Version version = latest(index);
+	const QKdbxDatabase::Version version = latest(index);
 
 	switch (role){
 	case Qt::DisplayRole:

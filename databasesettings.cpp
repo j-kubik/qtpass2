@@ -90,14 +90,14 @@ void DatabaseSettings::fromDatabase(QKdbxDatabase* db){
 	ui->recycleBin = fdb->index(fdb->recycleBin(),0);
 	ui->recycleBinCombo->setModel(fdb);
 	ui->recycleBinCombo->setCurrentIndex(ui->recycleBin);
-	ui->recycleBinCombo->view()->setExpanded(fdb->root(), true);
+	ui->recycleBinCombo->view()->setExpanded(fdb->rootIndex(), true);
 
 	ui->templates = fdb->index(fdb->templates(), 0);
 	ui->templatesBox->setChecked(ui->templates.isValid());
 	ui->templatesCombo->setEnabled(ui->templates.isValid());
 	ui->templatesCombo->setModel(fdb);
 	ui->templatesCombo->setCurrentIndex(ui->templates);
-	ui->templatesCombo->view()->setExpanded(fdb->root(), true);
+	ui->templatesCombo->view()->setExpanded(fdb->rootIndex(), true);
 
 	ui->historyCountBox->setValue(settings.historyMaxItems);
 	ui->historyDaysBox->setValue(settings.maintenanceHistoryDays);
@@ -113,7 +113,7 @@ void DatabaseSettings::toDatabase(){
 	if (!fdb || fdb->frozen())
 		return;
 
-	Kdbx::Database::Settings::Ptr settings(new Kdbx::Database::Settings(fdb->settings()));
+	Kdbx::Database::Settings::Ptr settings(new Kdbx::Database::Settings(fdb->get()->settings()));
 
 	settings->setName(utf8QString(ui->nameEdit->text()));
 	settings->setDefaultUsername(utf8QString(ui->usernameEdit->text()));

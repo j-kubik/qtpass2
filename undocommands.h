@@ -44,11 +44,11 @@ protected:
 						  size_t newIndex);
 	inline Kdbx::Database::Group::Ptr takeGroup(Kdbx::Database::Group* parent,
 												size_t index);
-	inline void setProperties(Kdbx::Database::Group* group,
+	inline void setProperties(const Kdbx::Database::Group* group,
 							  Kdbx::Database::Group::Properties::Ptr& properties);
 	inline void swapSettings(Kdbx::Database::Settings::Ptr& settings);
-	inline void setTemplates(QKdbxDatabase::Group templ, std::time_t changed);
-	inline void setRecycleBin(QKdbxDatabase::Group bin, std::time_t changed);
+	inline void setTemplates(const Kdbx::Database::Group* templ, std::time_t changed);
+	inline void setRecycleBin(const Kdbx::Database::Group* bin, std::time_t changed);
 	QKdbxDatabase* fmodel;
 public:
 
@@ -195,7 +195,7 @@ public:
 			 QUndoCommand * parent = 0) noexcept;
 
 	inline Kdbx::Database::Group* addedGroup() const noexcept{
-		return fgroup->group(findex);
+		return fparent->group(findex);
 	}
 
 	void redo() override;
@@ -256,11 +256,11 @@ public:
 
 class GroupProperties: public DatabaseCommand{
 private:
-	Kdbx::Database::Group* fgroup;
+	const Kdbx::Database::Group* fgroup;
 	Kdbx::Database::Group::Properties::Ptr fproperties;
 public:
 
-	GroupProperties(Kdbx::Database::Group* group,
+	GroupProperties(const Kdbx::Database::Group* group,
 			  Kdbx::Database::Group::Properties::Ptr properties,
 			  QKdbxDatabase* model,
 			  QUndoCommand * parent = 0) noexcept;
@@ -284,11 +284,11 @@ public:
 
 class SetRecycleBinCommand: public DatabaseCommand{
 private:
-	QKdbxDatabase::Group recycleBin;
+	const Kdbx::Database::Group* recycleBin;
 	std::time_t changed;
 public:
 
-	SetRecycleBinCommand(QKdbxDatabase::Group bin,
+	SetRecycleBinCommand(const Kdbx::Database::Group* bin,
 						 std::time_t changed,
 						 QKdbxDatabase* model,
 						 QUndoCommand * parent = 0) noexcept;
@@ -299,11 +299,11 @@ public:
 
 class SetTemplatesCommand: public DatabaseCommand{
 private:
-	QKdbxDatabase::Group templates;
+	const Kdbx::Database::Group* templates;
 	std::time_t changed;
 public:
 
-	SetTemplatesCommand(QKdbxDatabase::Group templates,
+	SetTemplatesCommand(const Kdbx::Database::Group* templates,
 						std::time_t changed,
 						QKdbxDatabase* model,
 						QUndoCommand * parent = 0) noexcept;

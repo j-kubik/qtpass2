@@ -3,7 +3,7 @@
 
 #include <QTabWidget>
 
-#include <libkeepass2pp/databasemodel.h>
+#include "qkdbxdatabase.h"
 
 namespace Ui {
 class VersionEditor;
@@ -20,7 +20,7 @@ public:
 	~VersionEditor();
 
 	void fromVersion(QKdbxDatabase* db, const Uuid& uuid, const Kdbx::Database::Version* version);
-	void fromVersion(Kdbx::DatabaseModel<QKdbxDatabase>::Version version);
+	void fromVersion(QKdbxDatabase::Version version);
 	void newVersion(QKdbxDatabase* db, const Uuid& uuid, Kdbx::Times times = Kdbx::Times::nowTimes());
 
 

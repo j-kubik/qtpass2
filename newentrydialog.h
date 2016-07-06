@@ -2,7 +2,7 @@
 #define NEWENTRYDIALOG_H
 
 #include <QDialog>
-#include <libkeepass2pp/databasemodel.h>
+#include "qkdbxdatabase.h"
 
 namespace Ui {
 class NewEntryDialog;
@@ -19,7 +19,7 @@ class NewEntryDialog : public QDialog{
 	Uuid fuuid;
 	Uuid fnewUuid;
 public:
-	explicit NewEntryDialog(Kdbx::DatabaseModel<QKdbxDatabase>::Group group, QWidget *parent = 0);
+	explicit NewEntryDialog(QKdbxDatabase::Group group, QWidget *parent = 0);
 	~NewEntryDialog();
 
 private slots:

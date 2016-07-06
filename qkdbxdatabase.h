@@ -29,27 +29,27 @@ class QKdbxGroup;
 
 class DatabaseCommand;
 
-class QKdbxDatabase: public QAbstractItemModel, public Kdbx::DatabaseModel<QKdbxDatabase>{
+class QKdbxDatabase: public QAbstractItemModel, public Kdbx::DatabaseModelCRTP<QKdbxDatabase>{
 public:
 	class Icons;
 private:
 	Q_OBJECT
 
+	typedef Kdbx::DatabaseModelCRTP<QKdbxDatabase> Base;
+
 	static const QString dataMimeType;
 
+	Kdbx::Database::Ptr fdatabase;
 	Icons* ficons;
 	QUndoStack* fundoStack;
 	bool ffrozen;
 	friend class Icons;
 public:
 
-	typedef Kdbx::DatabaseModel<QKdbxDatabase>::Group Group;
-	typedef Kdbx::DatabaseModel<QKdbxDatabase>::Entry Entry;
-	typedef Kdbx::DatabaseModel<QKdbxDatabase>::Version Version;
 
-	typedef Kdbx::DatabaseModel<const QKdbxDatabase>::Group CGroup;
-	typedef Kdbx::DatabaseModel<const QKdbxDatabase>::Entry CEntry;
-	typedef Kdbx::DatabaseModel<const QKdbxDatabase>::Version CVersion;
+	typedef Kdbx::DatabaseModelCRTP<QKdbxDatabase>::Group Group;
+	typedef Kdbx::DatabaseModelCRTP<QKdbxDatabase>::Entry Entry;
+	typedef Kdbx::DatabaseModelCRTP<QKdbxDatabase>::Version Version;
 
 	class Icons: public QAbstractListModel{
 	private:
@@ -111,52 +111,49 @@ public:
 	QKdbxDatabase(Kdbx::Database::Ptr database, QObject* parent=0);
 	~QKdbxDatabase() noexcept;
 
+	Kdbx::Database* getDatabase() const noexcept override;
+
 	inline bool frozen() const noexcept{
 		return ffrozen;
 	}
 
-	inline const Kdbx::Database::Settings& settings() const noexcept{
-		return get()->settings();
-	}
-
-	QModelIndex root() const noexcept;
+	QModelIndex rootIndex() const noexcept;
 
 	QModelIndex index(const Kdbx::Database::Group* group, int column) const noexcept;
 	QModelIndex index(const Kdbx::Database::Group* group, int row, int column) const noexcept;
-	QModelIndex index(CGroup group, int column) const noexcept;
-	QModelIndex index(CGroup group, int row, int column) const noexcept;
 
-	Group rootGroup() noexcept;
-	CGroup rootGroup() const noexcept;
+	using Kdbx::DatabaseModelCRTP<QKdbxDatabase>::root;
+
 	Group group(const QModelIndex& index) noexcept;
-	CGroup group(const QModelIndex& index) const noexcept;
+	const Kdbx::Database::Group* group(const QModelIndex& index) const noexcept;
 
-	using Kdbx::DatabaseModel<QKdbxDatabase>::group;
-	using Kdbx::DatabaseModel<QKdbxDatabase>::entry;
+	using Kdbx::DatabaseModelCRTP<QKdbxDatabase>::group;
+	using Kdbx::DatabaseModelCRTP<QKdbxDatabase>::entry;
 
-	inline QIcon icon(CVersion entry) const noexcept{
+	inline QIcon icon(Version entry) const noexcept{
 		return icons()->icon(entry->icon);
 	}
-	inline QIcon icon(CGroup group) const noexcept{
+
+	inline QIcon icon(Group group) const noexcept{
 		return icons()->icon(group.properties().icon);
 	}
 
-	Icons* icons() noexcept;
-	const Icons* icons() const noexcept;
+	Icons* icons() const noexcept;
 
+	//ToDo: This needs re-thinking...
 	void moveEntry(Entry entry, Group newParent, size_t newIndex);
 	void moveGroup(Group group, Group newParent, size_t newIndex);
 
-	inline QUndoStack* undoStack(){
+	inline QUndoStack* undoStack() const{
 		if (ffrozen)
 			return nullptr;
 		return fundoStack;
 	}
 
-	void setProperties(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr properties) override;
+	void setProperties(const Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr properties) override;
 	void setSettings(Kdbx::Database::Settings::Ptr settings) override;
-	void setTemplates(Group templ, std::time_t changed = time(nullptr)) override;
-	void setRecycleBin(Group bin, std::time_t changed = time(nullptr)) override;
+	void setTemplates(const Kdbx::Database::Group* templ, std::time_t changed = time(nullptr)) override;
+	void setRecycleBin(const Kdbx::Database::Group* bin, std::time_t changed = time(nullptr)) override;
 
 	void saveToFile(std::unique_ptr<std::ostream> stream);
 
@@ -173,8 +170,6 @@ protected:
 	void removeGroup(Kdbx::Database::Group* parent, size_t index) override;
 	Kdbx::Database::Group::Ptr takeGroup(Kdbx::Database::Group* parent, size_t index) override;
 
-	Kdbx::Database::Ptr reset(Kdbx::Database::Ptr newDatabase)override;
-
 	Kdbx::Icon addCustomIcon(Kdbx::CustomIcon::Ptr ptr) override;
 
 	// those methods are used by DatabaseCommand instances to operate on database from withing
@@ -186,10 +181,10 @@ protected:
 	Kdbx::Database::Group* addGroupCommand(Kdbx::Database::Group* parent, Kdbx::Database::Group::Ptr group, size_t index);
 	bool moveGroupCommand(Kdbx::Database::Group* oldParent, size_t oldIndex, size_t count, Kdbx::Database::Group* newParent, size_t newIndex);
 	Kdbx::Database::Group::Ptr takeGroupCommand(Kdbx::Database::Group* parent, size_t index);
-	void setPropertiesCommand(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr& properties);
+	void setPropertiesCommand(const Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr& properties);
 	void swapSettingsCommand(Kdbx::Database::Settings::Ptr& settings);
-	void setTemplatesCommand(Group templ, std::time_t changed);
-	void setRecycleBinCommand(Group bin, std::time_t changed);
+	void setTemplatesCommand(const Kdbx::Database::Group* templ, std::time_t changed);
+	void setRecycleBinCommand(const Kdbx::Database::Group* bin, std::time_t changed);
 
 public:
 

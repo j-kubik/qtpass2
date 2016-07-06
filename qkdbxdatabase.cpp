@@ -145,7 +145,7 @@ Kdbx::Database::Ptr getdb(std::future<Kdbx::Database::Ptr> future){
 
 QKdbxDatabase::QKdbxDatabase(Kdbx::Database::Ptr database, QObject* parent)
 	:QAbstractItemModel(parent),
-	  Kdbx::DatabaseModel<QKdbxDatabase>(std::move(database)),
+	  fdatabase(std::move(database)),
 	  ficons(new Icons(this)),
 	  fundoStack(new QUndoStack(this)),
 	  ffrozen(false)
@@ -153,7 +153,11 @@ QKdbxDatabase::QKdbxDatabase(Kdbx::Database::Ptr database, QObject* parent)
 
 QKdbxDatabase::~QKdbxDatabase() noexcept{}
 
-QModelIndex QKdbxDatabase::root() const noexcept{
+Kdbx::Database* QKdbxDatabase::getDatabase() const noexcept{
+	return fdatabase.get();
+}
+
+QModelIndex QKdbxDatabase::rootIndex() const noexcept{
 	return index(get()->root(), 0, 0);
 }
 
@@ -174,57 +178,22 @@ QModelIndex QKdbxDatabase::index(const Kdbx::Database::Group* group, int column)
 }
 
 QModelIndex QKdbxDatabase::index(const Kdbx::Database::Group* group, int row, int column) const noexcept{
-	return createIndex(row, column, this->group(group).raw());
-}
-
-
-QModelIndex QKdbxDatabase::index(CGroup group, int column) const noexcept{
-	if (!group)
-		return QModelIndex();
-		//return index(CGroup(), 0, column);
-
-	CGroup parent = group.parent();
-	if (!parent)
-		return index(group, 0, column);
-
-	for (size_t i=0; i<parent.groups(); ++i){
-		if (parent.group(i) == group)
-			return index(group, i, column);
-	}
-	assert(false);
-	return QModelIndex(); // This should not happen...
-}
-
-QModelIndex QKdbxDatabase::index(CGroup group, int row, int column) const noexcept{
-	return createIndex(row, column, group.raw());
-}
-
-QKdbxDatabase::Group QKdbxDatabase::rootGroup() noexcept{
-	return DatabaseModel::root();
-}
-
-QKdbxDatabase::CGroup QKdbxDatabase::rootGroup() const noexcept{
-	return DatabaseModel::root();
+	return createIndex(row, column, const_cast<Kdbx::Database::Group*>(group));
 }
 
 QKdbxDatabase::Group QKdbxDatabase::group(const QModelIndex& index) noexcept{
 	if (index.isValid())
-		return Group(index.internalPointer(), this);
+		return group(index.internalPointer());
 	return Group();
 }
 
-QKdbxDatabase::CGroup QKdbxDatabase::group(const QModelIndex& index) const noexcept{
+const Kdbx::Database::Group* QKdbxDatabase::group(const QModelIndex& index) const noexcept{
 	if (index.isValid())
-		return CGroup(index.internalPointer(), this);
-	return CGroup();
+		return group(index.internalPointer());
+	return nullptr;
 }
 
-QKdbxDatabase::Icons* QKdbxDatabase::icons() noexcept{
-	return ficons;
-}
-
-
-const QKdbxDatabase::Icons* QKdbxDatabase::icons() const noexcept{
+QKdbxDatabase::Icons* QKdbxDatabase::icons() const noexcept{
 	return ficons;
 }
 
@@ -250,7 +219,7 @@ void QKdbxDatabase::moveGroup(Group group, Group newParent, size_t newIndex){
 	fundoStack->push(new GroupMove(group.parent().item(), group.index(), 1, newParent.item(), newIndex, this));
 }
 
-void QKdbxDatabase::setProperties(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr properties){
+void QKdbxDatabase::setProperties(const Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr properties){
 	fundoStack->push(new GroupProperties(group, std::move(properties), this));
 }
 
@@ -258,11 +227,11 @@ void QKdbxDatabase::setSettings(Kdbx::Database::Settings::Ptr settings){
 	fundoStack->push(new DatabaseSettingsCommand(std::move(settings), this));
 }
 
-void QKdbxDatabase::setTemplates(Group templ, std::time_t changed){
+void QKdbxDatabase::setTemplates(const Kdbx::Database::Group* templ, std::time_t changed){
 	fundoStack->push(new SetTemplatesCommand(templ, changed, this));
 }
 
-void QKdbxDatabase::setRecycleBin(Group bin, std::time_t changed){
+void QKdbxDatabase::setRecycleBin(const Kdbx::Database::Group* bin, std::time_t changed){
 	fundoStack->push(new SetRecycleBinCommand(bin, changed, this));
 }
 
@@ -320,16 +289,6 @@ Kdbx::Database::Group::Ptr QKdbxDatabase::takeGroup(Kdbx::Database::Group* paren
 	return result->groupCopy();
 }
 
-Kdbx::Database::Ptr QKdbxDatabase::reset(Kdbx::Database::Ptr newDatabase){
-	fundoStack->clear();
-	emit beginResetModel();
-	ficons->beginResetModel();
-	Kdbx::Database::Ptr result = DatabaseModel::reset(std::move(newDatabase));
-	ficons->endResetModel();
-	emit endResetModel();
-	return result;
-}
-
 Kdbx::Icon QKdbxDatabase::addCustomIcon(Kdbx::CustomIcon::Ptr icon){
 	QIcon qicon = Icons::customQIcon(icon);
 	return ficons->insertQIcon(std::move(qicon), std::move(icon));
@@ -337,21 +296,21 @@ Kdbx::Icon QKdbxDatabase::addCustomIcon(Kdbx::CustomIcon::Ptr icon){
 
 Kdbx::Database::Version* QKdbxDatabase::addVersionCommand(Kdbx::Database::Entry* entry, Kdbx::Database::Version::Ptr version, size_t index){
 	emit beginVersionAdd(this->entry(entry), index);
-	Kdbx::Database::Version* result = DatabaseModel::addVersion(entry, std::move(version), index);
+	Kdbx::Database::Version* result = DatabaseModelCRTP::addVersion(entry, std::move(version), index);
 	emit endVersionAdd(this->entry(entry), index);
 	return result;
 }
 
 Kdbx::Database::Version::Ptr QKdbxDatabase::takeVersionCommand(Kdbx::Database::Entry* entry, size_t index){
 	emit beginVersionRemove(this->entry(entry), index);
-	Kdbx::Database::Version::Ptr result = DatabaseModel::takeVersion(entry, index);
+	Kdbx::Database::Version::Ptr result = DatabaseModelCRTP::takeVersion(entry, index);
 	emit endVersionRemove(this->entry(entry), index);
 	return result;
 }
 
 Kdbx::Database::Entry* QKdbxDatabase::addEntryCommand(Kdbx::Database::Group* group, Kdbx::Database::Entry::Ptr entry, size_t index){
 	emit beginEntryAdd(this->group(group), index);
-	Kdbx::Database::Entry* result = DatabaseModel::addEntry(group, std::move(entry), index);
+	Kdbx::Database::Entry* result = Base::addEntry(group, std::move(entry), index);
 	emit endEntryAdd(this->group(group), index);
 	QModelIndex idx = this->index(group, 1);
 	emit dataChanged(idx, idx, QVector<int>(Qt::DisplayRole));
@@ -360,7 +319,7 @@ Kdbx::Database::Entry* QKdbxDatabase::addEntryCommand(Kdbx::Database::Group* gro
 
 Kdbx::Database::Entry::Ptr QKdbxDatabase::takeEntryCommand(Kdbx::Database::Group* group, size_t index){
 	emit beginEntryRemove(this->group(group), index);
-	Kdbx::Database::Entry::Ptr result = DatabaseModel::takeEntry(group, index);
+	Kdbx::Database::Entry::Ptr result = Base::takeEntry(group, index);
 	emit endEntryRemove(this->group(group), index);
 	QModelIndex idx = this->index(group, 1);
 	emit dataChanged(idx, idx, QVector<int>(Qt::DisplayRole));
@@ -370,67 +329,67 @@ Kdbx::Database::Entry::Ptr QKdbxDatabase::takeEntryCommand(Kdbx::Database::Group
 Kdbx::Database::Group* QKdbxDatabase::addGroupCommand(Kdbx::Database::Group* parent, Kdbx::Database::Group::Ptr group, size_t idx){
 	emit beginInsertRows(index(parent,0), idx, idx);
 	emit beginGroupAdd(this->group(parent), idx);
-	Kdbx::Database::Group* result = DatabaseModel::addGroup(parent, std::move(group), idx);
+	Kdbx::Database::Group* result = Base::addGroup(parent, std::move(group), idx);
 	emit endGroupAdd(this->group(parent), idx);
 	emit endInsertRows();
 	return result;
 }
 
 bool QKdbxDatabase::moveGroupCommand(Kdbx::Database::Group* oldParent, size_t oldIndex, size_t count, Kdbx::Database::Group* newParent, size_t newIndex){
-	if (beginMoveRows(index(oldParent, 0), oldIndex, oldIndex+count-1, index(newParent, 0), newIndex) == false)
+	if (const_cast<QKdbxDatabase*>(this)->beginMoveRows(index(oldParent, 0), oldIndex, oldIndex+count-1, index(newParent, 0), newIndex) == false)
 		return false;
 
 	if (oldParent == newParent && oldIndex < newIndex){
 		for (size_t i=0; i<count; i++){
 			emit beginGroupRemove(this->group(oldParent), oldIndex);
-			Kdbx::Database::Group::Ptr tmp = DatabaseModel::takeGroup(oldParent, oldIndex);
+			Kdbx::Database::Group::Ptr tmp = DatabaseModelCRTP::takeGroup(oldParent, oldIndex);
 			emit endGroupRemove(this->group(oldParent), oldIndex);
 			emit beginGroupAdd(this->group(newParent), newIndex-1);
-			DatabaseModel::addGroup(newParent, std::move(tmp), newIndex-1);
+			DatabaseModelCRTP::addGroup(newParent, std::move(tmp), newIndex-1);
 			emit endGroupAdd(this->group(newParent), newIndex-1);
 		}
 	}else{
 		for (size_t i=0; i<count; i++){
 			emit beginGroupRemove(group(oldParent), oldIndex);
-			Kdbx::Database::Group::Ptr tmp = DatabaseModel::takeGroup(oldParent, oldIndex);
+			Kdbx::Database::Group::Ptr tmp = DatabaseModelCRTP::takeGroup(oldParent, oldIndex);
 			emit endGroupRemove(group(oldParent), oldIndex);
 			emit beginGroupAdd(group(newParent), newIndex);
-			DatabaseModel::addGroup(newParent, std::move(tmp), newIndex);
+			DatabaseModelCRTP::addGroup(newParent, std::move(tmp), newIndex);
 			emit endGroupAdd(group(newParent), newIndex-1);
 			newIndex++;
 		}
 	}
-	endMoveRows();
+	const_cast<QKdbxDatabase*>(this)->endMoveRows();
 	return true;
 }
 
 
 Kdbx::Database::Group::Ptr QKdbxDatabase::takeGroupCommand(Kdbx::Database::Group* parent, size_t idx){
-	emit beginRemoveRows(index(parent, 0), idx, idx);
+	emit const_cast<QKdbxDatabase*>(this)->beginRemoveRows(index(parent, 0), idx, idx);
 	emit beginGroupRemove(group(parent), idx);
-	Kdbx::Database::Group::Ptr result = DatabaseModel::takeGroup(parent, idx);
+	Kdbx::Database::Group::Ptr result = DatabaseModelCRTP::takeGroup(parent, idx);
 	emit endGroupRemove(group(parent), idx);
-	emit endRemoveRows();
+	emit const_cast<QKdbxDatabase*>(this)->endRemoveRows();
 	return result;
 }
 
-void QKdbxDatabase::setPropertiesCommand(Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr& properties){
-	DatabaseModel::swapProperties(group, properties);
-	emit dataChanged(index(group, 0), index(group, columnCount(QModelIndex())-1));
+void QKdbxDatabase::setPropertiesCommand(const Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr& properties){
+	DatabaseModelCRTP::swapProperties(group, properties);
+	emit const_cast<QKdbxDatabase*>(this)->dataChanged(index(group, 0), index(group, columnCount(QModelIndex())-1));
 }
 
 void QKdbxDatabase::swapSettingsCommand(Kdbx::Database::Settings::Ptr& settings){
-	DatabaseModel::swapSettings(settings);
+	DatabaseModelCRTP::swapSettings(settings);
 	emit settingsChanged();
 }
 
-void QKdbxDatabase::setTemplatesCommand(Group templ, std::time_t changed){
-	DatabaseModel::setTemplates(templ, changed);
+void QKdbxDatabase::setTemplatesCommand(const Kdbx::Database::Group* templ, std::time_t changed){
+	DatabaseModelCRTP::setTemplates(templ, changed);
 	emit settingsChanged();
 }
 
-void QKdbxDatabase::setRecycleBinCommand(Group bin, std::time_t changed){
-	DatabaseModel::setRecycleBin(bin, changed);
+void QKdbxDatabase::setRecycleBinCommand(const Kdbx::Database::Group* bin, std::time_t changed){
+	DatabaseModelCRTP::setRecycleBin(bin, changed);
 	emit settingsChanged();
 }
 
@@ -438,12 +397,11 @@ Qt::ItemFlags QKdbxDatabase::flags(const QModelIndex & index) const noexcept{
 
 	Qt::ItemFlags result = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
 
-	unused(index);
 	if (index.isValid()){
 		result |= Qt::ItemIsDropEnabled;
 
-		CGroup g = group(index);
-		if (g.parent()){
+		const Kdbx::Database::Group* g = group(index);
+		if (g->parent()){
 			result |= Qt::ItemIsDragEnabled;
 		}
 
@@ -461,7 +419,7 @@ QVariant QKdbxDatabase::data(const QModelIndex & index, int role) const noexcept
 	if (!index.isValid())
 		return QVariant();
 
-	CGroup g = group(index);
+	const Kdbx::Database::Group* g = group(index);
 
 	switch (role){
 	case Qt::EditRole:
@@ -483,7 +441,7 @@ QVariant QKdbxDatabase::data(const QModelIndex & index, int role) const noexcept
 
 	case Qt::DecorationRole:
 		if (index.column() == 0){
-			return g.model()->icons()->icon(g->properties().icon);
+			return icons()->icon(g->properties().icon);
 		}
 		break;
 
@@ -528,7 +486,7 @@ QVariant QKdbxDatabase::headerData(int section, Qt::Orientation orientation, int
 int QKdbxDatabase::rowCount(const QModelIndex & parent) const noexcept{
 	//std::cout << "rowCount: " << parent.row() << ", " << parent.column() << ", "<< parent.internalPointer() << std::endl;
 	if (!parent.isValid()) return 1;
-	CGroup g = group(parent);
+	const Kdbx::Database::Group* g = group(parent);
 	if (!g) return 1;
 	return g->groups();
 }
@@ -546,7 +504,7 @@ QModelIndex QKdbxDatabase::index(int row, int column, const QModelIndex & parent
 		return QModelIndex();
 	}
 
-	CGroup g(parent.internalPointer(), this);
+	const Kdbx::Database::Group* g = group(parent);
 	if (column > 1 || row >= int(g->groups()))
 		return QModelIndex();
 
@@ -558,8 +516,8 @@ QModelIndex QKdbxDatabase::parent(const QModelIndex & idx) const noexcept{
 	if (!idx.isValid())
 		return QModelIndex();
 
-	CGroup g(idx.internalPointer(), this);
-	CGroup parent = g.parent();
+	const Kdbx::Database::Group* g = group(idx);
+	const Kdbx::Database::Group*  parent = g->parent();
 	if (!parent)
 		return QModelIndex();
 
@@ -583,7 +541,7 @@ QMimeData* QKdbxDatabase::mimeData(const QModelIndexList &indexes) const{
 	for (const QModelIndex& index: indexes){
 		if (!index.isValid() || index.column() != 0)
 			continue;
-		CGroup g = group(index);
+		const Kdbx::Database::Group* g = group(index);
 		std::array<uint8_t, 16> uuid = g->uuid().raw();
 		buffer.write(reinterpret_cast<const char*>(uuid.data()), uuid.size());
 	}

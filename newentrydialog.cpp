@@ -3,7 +3,7 @@
 
 #include "qkdbxdatabase.h"
 
-NewEntryDialog::NewEntryDialog(Kdbx::DatabaseModel<QKdbxDatabase>::Group group, QWidget *parent) :
+NewEntryDialog::NewEntryDialog(QKdbxDatabase::Group group, QWidget *parent) :
 	QDialog(parent),
 	fdb(group.model()),
 	fversion(new Kdbx::Database::Version()),
