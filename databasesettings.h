@@ -23,22 +23,13 @@ public:
 	void toDatabase();
 
 private slots:
-	void on_recycleBinCombo_currentIndexChanged(int index);
-
-	void on_templatesCombo_currentIndexChanged(int index);
-
 	void on_okButton_clicked();
 
-	void on_reloadButton_clicked();
-
+	void reload();
 	void drop();
 
 private:
-	class MyUi;
-
-	MyUi* ui;
-
-	//Ui::DatabaseSettings *ui;
+	Ui::DatabaseSettings *ui;
 };
 
 #endif // DATABASESETTINGS_H

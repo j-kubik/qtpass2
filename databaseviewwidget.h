@@ -6,6 +6,8 @@
 #include <QUndoStack>
 #include <QFlags>
 
+#include <libkeepass2pp/platform.h>
+
 class DatabaseViewWidget: public QWidget{
 	Q_OBJECT
 public:
@@ -15,7 +17,8 @@ public:
 		SaveAs = 0x02,
 		NewEntry = 0x04,
 		NewGroup = 0x08,
-		Settings = 0x10
+		Settings = 0x10,
+		Icons = 0x20
 	};
 	Q_DECLARE_FLAGS( StandardBarActions, StandardBarAction)
 
@@ -34,7 +37,12 @@ signals:
 	void nameChanged(QString name);
 	void actionsUpdated();
 
+private:
+
 };
+
+
+
 
 Q_DECLARE_OPERATORS_FOR_FLAGS( DatabaseViewWidget::StandardBarActions)
 

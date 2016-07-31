@@ -6,35 +6,16 @@
 
 #include <QTreeView>
 
-class DatabaseSettings::MyUi: public Ui::DatabaseSettings{
-public:
-
-//	QTreeView* recycleBinComboView;
-//	QTreeView* templatesComboView;
-
-	QPersistentModelIndex templates;
-	QPersistentModelIndex recycleBin;
-
-//	void setupUi(QDialog *DatabaseSettings){
-//		Ui::DatabaseSettings::setupUi(DatabaseSettings);
-//	}
-
-
-
-private slots:
-
-
-};
-
 DatabaseSettings::DatabaseSettings(QKdbxDatabase* db, QWidget *parent) :
 	QDialog(parent),
 	fdb(nullptr),
-	ui(new MyUi)
+	ui(new Ui::DatabaseSettings)
 {
-	ui->setupUi(this);
-	ui->updateFrame->hide();
 	setAttribute(Qt::WA_DeleteOnClose);
+	ui->setupUi(this);
+	ui->notifyPanel->setButtons(NotificationFrame::Update | NotificationFrame::Dismiss);
 
+	connect(ui->notifyPanel, &NotificationFrame::updated, this, &DatabaseSettings::reload);
 	fromDatabase(db);
 }
 
@@ -48,13 +29,13 @@ void DatabaseSettings::fromDatabase(QKdbxDatabase* db){
 		disconnect(fdb, &QKdbxDatabase::modelReset, this, &DatabaseSettings::drop);
 		disconnect(fdb, &QObject::destroyed, this, &DatabaseSettings::drop);
 		disconnect(fdb, &QKdbxDatabase::frozenChanged, this, &QWidget::setDisabled);
-		disconnect(fdb, &QKdbxDatabase::settingsChanged, ui->updateFrame, &QWidget::show);
+		disconnect(fdb, &QKdbxDatabase::settingsChanged, ui->notifyPanel, &QWidget::show);
 	}
 	fdb = db;
 	connect(fdb, &QKdbxDatabase::modelReset, this, &DatabaseSettings::drop);
 	connect(fdb, &QObject::destroyed, this, &DatabaseSettings::drop);
 	connect(fdb, &QKdbxDatabase::frozenChanged, this, &QWidget::setDisabled);
-	connect(fdb, &QKdbxDatabase::settingsChanged, ui->updateFrame, &QWidget::show);
+	connect(fdb, &QKdbxDatabase::settingsChanged, ui->notifyPanel, &QWidget::show);
 
 	setDisabled(fdb->frozen());
 
@@ -85,19 +66,15 @@ void DatabaseSettings::fromDatabase(QKdbxDatabase* db){
 	// ToDo: history maximum sizes - this needs implementing through the library...
 	// ToDo: GUI shuld be adjusted so amaller size limit can also be added.
 
-	ui->recycleBinBox->setChecked(settings.recycleBinEnabled);
-	ui->recycleBinCombo->setEnabled(settings.recycleBinEnabled);
-	ui->recycleBin = fdb->index(fdb->recycleBin(),0);
-	ui->recycleBinCombo->setModel(fdb);
-	ui->recycleBinCombo->setCurrentIndex(ui->recycleBin);
-	ui->recycleBinCombo->view()->setExpanded(fdb->rootIndex(), true);
+	ui->recycleBinBox->setChecked(settings.recycleBinEnabled && fdb->recycleBin());
+	ui->recycleBinButton->setEnabled(settings.recycleBinEnabled && fdb->recycleBin());
+	ui->recycleBinButton->setDatabase(fdb);
+	ui->recycleBinButton->setCurrent(fdb->recycleBin());
 
-	ui->templates = fdb->index(fdb->templates(), 0);
-	ui->templatesBox->setChecked(ui->templates.isValid());
-	ui->templatesCombo->setEnabled(ui->templates.isValid());
-	ui->templatesCombo->setModel(fdb);
-	ui->templatesCombo->setCurrentIndex(ui->templates);
-	ui->templatesCombo->view()->setExpanded(fdb->rootIndex(), true);
+	ui->templatesBox->setChecked(fdb->templates());
+	ui->templatesButton->setEnabled(fdb->templates());
+	ui->templatesButton->setDatabase(fdb);
+	ui->templatesButton->setCurrent(fdb->templates());
 
 	ui->historyCountBox->setValue(settings.historyMaxItems);
 	ui->historyDaysBox->setValue(settings.maintenanceHistoryDays);
@@ -152,21 +129,22 @@ void DatabaseSettings::toDatabase(){
 	settings->memoryProtection.set(Kdbx::MemoryProtection::Url, ui->urlBox->isChecked());
 	settings->memoryProtection.set(Kdbx::MemoryProtection::Notes, ui->notesBox->isChecked());
 
+	settings->recycleBinEnabled = ui->recycleBinBox->isChecked() && ui->recycleBinButton->current();
+	fdb->undoStack()->beginMacro("Changed database settings.");
 	fdb->setSettings(std::move(settings));
-}
+	if (ui->templatesBox->isChecked()){
+		fdb->setTemplates(ui->templatesButton->current());
+	}else{
+		fdb->setTemplates(QKdbxDatabase::Group());
+	}
+	if (ui->recycleBinBox->isChecked()){
+		fdb->setRecycleBin(ui->recycleBinButton->current());
+	}else{
+		fdb->setRecycleBin(QKdbxDatabase::Group());
+	}
+	fdb->undoStack()->endMacro();
 
-void DatabaseSettings::on_recycleBinCombo_currentIndexChanged(int){
-	if (!fdb)
-		return;
 
-	ui->recycleBin = ui->templatesCombo->view()->currentIndex();
-}
-
-void DatabaseSettings::on_templatesCombo_currentIndexChanged(int){
-	if (!fdb)
-		return;
-
-	ui->templates = ui->templatesCombo->view()->currentIndex();
 }
 
 void DatabaseSettings::on_okButton_clicked(){
@@ -174,7 +152,7 @@ void DatabaseSettings::on_okButton_clicked(){
 	accept();
 }
 
-void DatabaseSettings::on_reloadButton_clicked(){
+void DatabaseSettings::reload(){
 	if (!fdb || fdb->frozen())
 		return;
 

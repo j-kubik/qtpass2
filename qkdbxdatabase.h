@@ -19,15 +19,20 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 #define QKDBXDATABASE_H
 
 #include <libkeepass2pp/databasemodel.h>
+#include <libkeepass2pp/compositekey.h>
 
 #include <QAbstractListModel>
 #include <QMap>
 #include <QIcon>
 #include <QUndoStack>
+#include <QFutureSynchronizer>
+
+#include "executor.h"
 
 class QKdbxGroup;
 
 class DatabaseCommand;
+class InsertIcons;
 
 class QKdbxDatabase: public QAbstractItemModel, public Kdbx::DatabaseModelCRTP<QKdbxDatabase>{
 public:
@@ -37,13 +42,18 @@ private:
 
 	typedef Kdbx::DatabaseModelCRTP<QKdbxDatabase> Base;
 
+	class FutureWatcher;
+
 	static const QString dataMimeType;
 
-	Kdbx::Database::Ptr fdatabase;
+	std::shared_ptr<Kdbx::Database> fdatabase;
 	Icons* ficons;
 	QUndoStack* fundoStack;
-	bool ffrozen;
-	friend class Icons;
+	InsertIcons* finsertIconsCommand;
+	size_t ffreezeCount;
+
+	static std::exception_ptr saveAsAsync(std::shared_ptr<Kdbx::Database> database, QString filename);
+
 public:
 
 
@@ -56,56 +66,63 @@ public:
 		Icons(QKdbxDatabase* database) noexcept;
 
 		void reset(Kdbx::Database* newDatabase);
-		Kdbx::Icon insertQIcon(QIcon icon, Kdbx::CustomIcon::Ptr customIcon);
+
+		void insertIcon(QIcon icon, Kdbx::CustomIcon::Ptr customIcon);
+		void insertIcon(Kdbx::CustomIcon::Ptr customIcon);
+		void eraseIcon(size_t index);
 
 		QKdbxDatabase* fdatabase;
-		std::map<const Uuid, QIcon> entries;
+		std::map<const Kdbx::Uuid, QIcon> entries;
 
 	public:
 
 		int rowCount(const QModelIndex &) const override;
 		QVariant data(const QModelIndex &index, int role = Qt::DecorationRole) const override;
 
-		inline QModelIndex modelIndex(const Uuid& uuid, int column=0) const noexcept{
+		inline QModelIndex modelIndex(const Kdbx::Uuid& uuid, int column=0) const noexcept{
 			int idx = index(uuid);
 			if (idx < 0)
 				return QModelIndex();
 			return createIndex(idx, column);
 		}
 
-		inline int index(const Uuid& uuid) const noexcept{
-			return fdatabase->get()->customIconIndex(uuid);
+		inline int index(const Kdbx::Uuid& uuid) const noexcept{
+			return fdatabase->get()->iconIndex(uuid);
 		}
 
-		inline const Uuid& uuid(int index) const noexcept{
-			return fdatabase->get()->customIcon(index)->uuid();
+		inline const Kdbx::Uuid& uuid(int index) const noexcept{
+			return fdatabase->get()->icon(index)->uuid();
 		}
 
 		inline const QIcon& icon(int index) const noexcept{
-			return entries.at(fdatabase->get()->customIcon(index)->uuid());
+			return entries.at(fdatabase->get()->icon(index)->uuid());
 		}
 
-		inline QIcon icon(const Uuid& uuid) const noexcept{
+		inline QIcon icon(const Kdbx::Uuid& uuid) const noexcept{
 			int idx = index(uuid);
 			if (idx >= 0){
-			   return entries.at(fdatabase->get()->customIcon(idx)->uuid());
+			   return entries.at(fdatabase->get()->icon(idx)->uuid());
 			}
 			return QIcon();
 		}
 
 		inline int size() const noexcept{
-			return fdatabase->get()->customIcons();
+			return fdatabase->get()->icons();
 		}
 
-		Uuid insert(QIcon icon);
-		void insert(QIcon icon, Uuid uuid);
+		Kdbx::Uuid add(QIcon icon);
 
 		QIcon icon(Kdbx::Icon i) const noexcept;
 
+		Kdbx::Icon kdbxIcon(const QModelIndex& index);
+		Kdbx::Icon kdbxIcon(int index);
+
 		static QIcon customQIcon(const Kdbx::CustomIcon::Ptr& customIcon);
 		static QIcon standardIcon(Kdbx::StandardIcon icon) noexcept;
+		static Kdbx::CustomIcon::Ptr customIcon(QIcon icon);
 
 		friend class QKdbxDatabase;
+		friend class InsertIcons;
 	};
 
 	QKdbxDatabase(Kdbx::Database::Ptr database, QObject* parent=0);
@@ -114,10 +131,10 @@ public:
 	Kdbx::Database* getDatabase() const noexcept override;
 
 	inline bool frozen() const noexcept{
-		return ffrozen;
+		return ffreezeCount;
 	}
 
-	QModelIndex rootIndex() const noexcept;
+	QModelIndex rootIndex(int column = 0) const noexcept;
 
 	QModelIndex index(const Kdbx::Database::Group* group, int column) const noexcept;
 	QModelIndex index(const Kdbx::Database::Group* group, int row, int column) const noexcept;
@@ -145,7 +162,7 @@ public:
 	void moveGroup(Group group, Group newParent, size_t newIndex);
 
 	inline QUndoStack* undoStack() const{
-		if (ffrozen)
+		if (frozen())
 			return nullptr;
 		return fundoStack;
 	}
@@ -156,6 +173,7 @@ public:
 	void setRecycleBin(const Kdbx::Database::Group* bin, std::time_t changed = time(nullptr)) override;
 
 	void saveToFile(std::unique_ptr<std::ostream> stream);
+
 
 protected:
 	//Kdbx::Database
@@ -170,16 +188,21 @@ protected:
 	void removeGroup(Kdbx::Database::Group* parent, size_t index) override;
 	Kdbx::Database::Group::Ptr takeGroup(Kdbx::Database::Group* parent, size_t index) override;
 
-	Kdbx::Icon addCustomIcon(Kdbx::CustomIcon::Ptr ptr) override;
+	void insertIcon(Kdbx::CustomIcon::Ptr ptr) override;
+	void eraseIcon(size_t index) override;
+
+	Kdbx::Uuid insertIcon(QIcon icon);
+
 
 	// those methods are used by DatabaseCommand instances to operate on database from withing
 	// undo stack.
 	Kdbx::Database::Version* addVersionCommand(Kdbx::Database::Entry* entry, Kdbx::Database::Version::Ptr version, size_t index);
 	Kdbx::Database::Version::Ptr takeVersionCommand(Kdbx::Database::Entry* entry, size_t index);
 	Kdbx::Database::Entry* addEntryCommand(Kdbx::Database::Group* group, Kdbx::Database::Entry::Ptr entry, size_t index);
+	void moveEntryCommand(Kdbx::Database::Group* oldParent, size_t oldIndex, Kdbx::Database::Group* newParent, size_t newIndex);
 	Kdbx::Database::Entry::Ptr takeEntryCommand(Kdbx::Database::Group* group, size_t index);
 	Kdbx::Database::Group* addGroupCommand(Kdbx::Database::Group* parent, Kdbx::Database::Group::Ptr group, size_t index);
-	bool moveGroupCommand(Kdbx::Database::Group* oldParent, size_t oldIndex, size_t count, Kdbx::Database::Group* newParent, size_t newIndex);
+	void moveGroupCommand(Kdbx::Database::Group* oldParent, size_t oldIndex, Kdbx::Database::Group* newParent, size_t newIndex);
 	Kdbx::Database::Group::Ptr takeGroupCommand(Kdbx::Database::Group* parent, size_t index);
 	void setPropertiesCommand(const Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr& properties);
 	void swapSettingsCommand(Kdbx::Database::Settings::Ptr& settings);
@@ -206,45 +229,46 @@ public:
 	//bool moveRows(const QModelIndex &sourceParent, int sourceRow, int count, const QModelIndex &destinationParent, int destinationChild) override;
 
 	static QString entryString(const Kdbx::Database::Version* version, const char* name) noexcept;
-	static XorredBuffer entryStringBuffer(const Kdbx::Database::Version* version, const char* name) noexcept;
+	static Kdbx::XorredBuffer entryStringBuffer(const Kdbx::Database::Version* version, const char* name) noexcept;
 
 	static inline QString entryString(Version version, const char* name) noexcept{
 		return entryString(version.get(), name);
 	}
 
-	static inline XorredBuffer entryStringBuffer(Version version, const char* name) noexcept{
+	static inline Kdbx::XorredBuffer entryStringBuffer(Version version, const char* name) noexcept{
 		return entryStringBuffer(version.get(), name);
 	}
 
-public slots:
 	void saveAs(QString filename);
 
 private slots:
-	void freeze();
-	void unfreeze();
+	void onFutureFinished();
 
 signals:
 	//Kdbx::Database
 	void settingsChanged();
-	void databaseChanged();
+	void groupPropertiesChanged(Group group);
 
 	void frozenChanged(bool frozen);
 
-	void beginGroupAdd(Group parent, size_t index);
-	void endGroupAdd(Group parent, size_t index);
-	void beginGroupRemove(Group parent, size_t index);
-	void endGroupRemove(Group parent, size_t index);
 	void beginEntryAdd(Group parent, size_t index);
 	void endEntryAdd(Group parent, size_t index);
+	void beginEntryMove(Group oldParent, size_t oldIndex, Group newParent, size_t newIndex);
+	void endEntryMove(Group oldParent, size_t oldIndex, Group newParent, size_t newIndex);
 	void beginEntryRemove(Group parent, size_t index);
 	void endEntryRemove(Group parent, size_t index);
+
 	void beginVersionAdd(Entry parent, size_t index);
 	void endVersionAdd(Entry parent, size_t index);
 	void beginVersionRemove(Entry parent, size_t index);
 	void endVersionRemove(Entry parent, size_t index);
 
+	void saveError(QString message);
+
 	friend class QKdbxGroup;
 	friend class DatabaseCommand;
+	friend class InsertIcons;
+	friend class Icons;
 };
 
 #endif // QKDBXDATABASE_H

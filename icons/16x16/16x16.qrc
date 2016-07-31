@@ -69,5 +69,11 @@
         <file>C66.png</file>
         <file>C67.png</file>
         <file>C68.png</file>
+        <file>r.png</file>
+        <file>x.png</file>
+        <file>i.png</file>
+        <file>n.png</file>
+        <file>s.png</file>
+        <file>o.png</file>
     </qresource>
 </RCC>

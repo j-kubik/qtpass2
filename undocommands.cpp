@@ -34,6 +34,13 @@ inline Kdbx::Database::Entry* DatabaseCommand::addEntry(Kdbx::Database::Group* g
 	return fmodel->addEntryCommand(group, std::move(entry), index);
 }
 
+inline void DatabaseCommand::moveEntry(Kdbx::Database::Group* oldParent,
+									   size_t oldIndex,
+									   Kdbx::Database::Group* newParent,
+									   size_t newIndex){
+	fmodel->moveEntryCommand(oldParent, oldIndex, newParent, newIndex);
+}
+
 inline Kdbx::Database::Entry::Ptr DatabaseCommand::takeEntry(Kdbx::Database::Group* group,
 															 size_t index){
 	return fmodel->takeEntryCommand(group, index);
@@ -45,12 +52,11 @@ inline Kdbx::Database::Group* DatabaseCommand::addGroup(Kdbx::Database::Group* p
 	return fmodel->addGroupCommand(parent, std::move(group), index);
 }
 
-inline bool DatabaseCommand::moveGroup(Kdbx::Database::Group* oldParent,
+inline void DatabaseCommand::moveGroup(Kdbx::Database::Group* oldParent,
 									   size_t oldIndex,
-									   size_t count,
 									   Kdbx::Database::Group* newParent,
 									   size_t newIndex){
-	return fmodel->moveGroupCommand(oldParent, oldIndex, count, newParent, newIndex);
+	fmodel->moveGroupCommand(oldParent, oldIndex, newParent, newIndex);
 }
 
 inline Kdbx::Database::Group::Ptr DatabaseCommand::takeGroup(Kdbx::Database::Group* parent,
@@ -92,14 +98,53 @@ inline DatabaseCommand::DatabaseCommand(QKdbxDatabase* model,
 	assert(fmodel != nullptr);
 }
 
-//-----------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+
+InsertIcons::InsertIcons(QKdbxDatabase* model,
+		 QUndoCommand * parent) noexcept
+	:DatabaseCommand(model, parent)
+{}
+
+InsertIcons::InsertIcons(std::vector<std::pair<QIcon, Kdbx::CustomIcon::Ptr>> icons,
+		 QKdbxDatabase* model,
+		 QUndoCommand * parent) noexcept
+	:DatabaseCommand(model, parent),
+	  icons(std::move(icons))
+{}
+
+void InsertIcons::redo(){
+	for (const std::pair<QIcon, Kdbx::CustomIcon::Ptr>& icon: icons){
+		fmodel->ficons->insertIcon(icon.first, icon.second);
+	}
+}
+
+void InsertIcons::undo(){
+	for (const std::pair<QIcon, Kdbx::CustomIcon::Ptr>& icon: icons){
+		fmodel->ficons->eraseIcon(fmodel->get()->iconIndex(icon.second));
+	}
+}
+
+void InsertIcons::addIcon(Kdbx::CustomIcon::Ptr icon){
+	QIcon qicon = QKdbxDatabase::Icons::customQIcon(icon);
+	icons.emplace_back(std::move(qicon), std::move(icon));
+}
+
+Kdbx::Uuid InsertIcons::addIcon(QIcon qicon){
+	Kdbx::CustomIcon::Ptr icon = QKdbxDatabase::Icons::customIcon(qicon);
+	Kdbx::Uuid result(icon->uuid());
+	icons.emplace_back(std::move(qicon), std::move(icon));
+	return result;
+}
+
+
+//------------------------------------------------------------------------------
 
 VersionUpdate::VersionUpdate(Kdbx::Database::Entry* entry,
 							 Kdbx::Database::Version::Ptr version,
 							 size_t index,
 							 QKdbxDatabase* model,
 							 QUndoCommand * parent) noexcept
-	:DatabaseCommand(model, parent),
+	:InsertIcons(model, parent),
 	  fversion(std::move(version)),
 	  findex(index),
 	  fentry(entry)
@@ -120,6 +165,8 @@ VersionUpdate::VersionUpdate(Kdbx::Database::Entry* entry,
 void VersionUpdate::redo(){
 	assert(fversion != nullptr);
 	assert(findex <= fentry->versions());
+
+	InsertIcons::redo();
 	addVersion(fentry, std::move(fversion), findex);
 #ifndef NDEBUG
 	fversion = nullptr;
@@ -130,6 +177,8 @@ void VersionUpdate::undo(){
 	assert(fversion == nullptr);
 	assert(findex < fentry->versions());
 	fversion = takeVersion(fentry, findex);
+
+	InsertIcons::undo();
 }
 
 //-----------------------------------------------------------------------------------
@@ -179,7 +228,7 @@ EntryAdd::EntryAdd(Kdbx::Database::Group* group,
 				   size_t index,
 				   QKdbxDatabase* model,
 				   QUndoCommand * parent) noexcept
-	:DatabaseCommand(model, parent),
+	:InsertIcons(model, parent),
 	  fentry(std::move(entry)),
 	  findex(index),
 	  fgroup(group)
@@ -202,6 +251,8 @@ EntryAdd::EntryAdd(Kdbx::Database::Group* group,
 void EntryAdd::redo(){
 	assert(findex <= fgroup->entries());
 	assert(fentry != nullptr);
+
+	InsertIcons::redo();
 	addEntry(fgroup, std::move(fentry), findex);
 #ifndef NDEBUG
 	fentry = nullptr;
@@ -212,6 +263,8 @@ void EntryAdd::undo(){
 	assert(findex < fgroup->entries());
 	assert(fentry == nullptr);
 	fentry = takeEntry(fgroup, findex);
+
+	InsertIcons::undo();
 }
 
 //-----------------------------------------------------------------------------------
@@ -231,7 +284,7 @@ EntryMove::EntryMove(Kdbx::Database::Group* oldParent,
 	assert(foldParent != nullptr);
 	assert(fnewParent != nullptr);
 	assert(foldIndex < foldParent->entries());
-	assert(fnewIndex < fnewParent->entries());
+	assert(fnewIndex <= fnewParent->entries());
 	assert(foldParent != fnewParent || (foldIndex != fnewIndex && foldIndex+1 != fnewIndex));
 
 	Kdbx::Database::Version* version = foldParent->entry(foldIndex)->latest();
@@ -309,7 +362,7 @@ GroupAdd::GroupAdd(Kdbx::Database::Group* parentGroup,
 				   size_t index,
 				   QKdbxDatabase* model,
 				   QUndoCommand * parent) noexcept
-	:DatabaseCommand(model, parent),
+	:InsertIcons(model, parent),
 	  fgroup(std::move(group)),
 	  findex(index),
 	  fparent(parentGroup)
@@ -325,6 +378,8 @@ GroupAdd::GroupAdd(Kdbx::Database::Group* parentGroup,
 void GroupAdd::redo(){
 	assert(findex <= fparent->groups());
 	assert(fgroup != nullptr);
+
+	InsertIcons::redo();
 	addGroup(fparent, std::move(fgroup), findex);
 #ifndef NDEBUG
 	fgroup = nullptr;
@@ -335,49 +390,47 @@ void GroupAdd::undo(){
 	assert(findex < fparent->groups());
 	assert(fgroup == nullptr);
 	fgroup = takeGroup(fparent, findex);
+	InsertIcons::redo();
 }
 
 
 //-----------------------------------------------------------------------------------
 
-GroupMove::GroupMove(Kdbx::Database::Group* sourceParent,
-		 size_t sourceIndex,
-		 size_t count,
-		 Kdbx::Database::Group* destinationParent,
-		 size_t destinationIndex,
+GroupMove::GroupMove(Kdbx::Database::Group* oldParent,
+		 size_t oldIndex,
+		 Kdbx::Database::Group* newParent,
+		 size_t newIndex,
 		 QKdbxDatabase* model,
 		 QUndoCommand * parent) noexcept
 	:DatabaseCommand(model, parent),
-	  fsourceIndex(sourceIndex),
-	  fcount(count),
-	  fdestinationIndex(destinationIndex),
-	  fsourceParent(sourceParent),
-	  fdestinationParent(destinationParent)
+	  foldIndex(oldIndex),
+	  fnewIndex(newIndex),
+	  foldParent(oldParent),
+	  fnewParent(newParent)
 {
-	assert(sourceParent != nullptr);
-	assert(sourceIndex+count <= sourceParent->groups());
-	assert(destinationParent != nullptr);
-	assert(destinationIndex <= destinationParent->groups());
-	assert(sourceParent != destinationParent || sourceIndex > destinationIndex || sourceIndex+count < destinationIndex);
+	assert(foldParent != nullptr);
+	assert(foldIndex < foldParent->groups());
+	assert(fnewParent != nullptr);
+	assert(fnewIndex <= fnewParent->groups());
+	assert(foldParent != fnewParent || foldIndex > fnewIndex || foldIndex+1 < fnewIndex);
 
-	const std::string& name = fsourceParent->group(fsourceIndex)->properties().name;
+	const std::string& name = foldParent->group(foldIndex)->properties().name;
 	setText(QObject::tr("move group '%1'.").arg(QString::fromUtf8(name.c_str(), name.size())));
-
 }
 
 void GroupMove::redo(){
-	//if (fsourceParent == fdestinationParent && fsourceIndex < fdestinationIndex)
-	moveGroup(fsourceParent, fsourceIndex, fcount, fdestinationParent, fdestinationIndex);
+	moveGroup(foldParent, foldIndex, fnewParent, fnewIndex);
 }
+
 void GroupMove::undo(){
-	if (fsourceParent == fdestinationParent){
-		if (fsourceIndex < fdestinationIndex){
-			moveGroup(fdestinationParent, fdestinationIndex-fcount, fcount, fsourceParent, fsourceIndex);
+	if (foldParent == fnewParent){
+		if (foldIndex < fnewIndex){
+			moveGroup(fnewParent, fnewIndex-1, foldParent, foldIndex);
 		}else{
-			moveGroup(fdestinationParent, fdestinationIndex, fcount, fsourceParent, fsourceIndex+fcount);
+			moveGroup(fnewParent, fnewIndex, foldParent, foldIndex+1);
 		}
 	}else{
-		moveGroup(fdestinationParent, fdestinationIndex, fcount, fsourceParent, fsourceIndex);
+		moveGroup(fnewParent, fnewIndex, foldParent, foldIndex);
 	}
 }
 
@@ -419,7 +472,7 @@ GroupProperties::GroupProperties(const Kdbx::Database::Group* group,
 		  Kdbx::Database::Group::Properties::Ptr properties,
 		  QKdbxDatabase* model,
 		  QUndoCommand * parent) noexcept
-	:DatabaseCommand(model, parent),
+	:InsertIcons(model, parent),
 	  fgroup(group),
 	  fproperties(std::move(properties))
 {
@@ -429,11 +482,13 @@ GroupProperties::GroupProperties(const Kdbx::Database::Group* group,
 }
 
 void GroupProperties::redo(){
+	InsertIcons::redo();
 	setProperties(fgroup, fproperties);
 }
 
 void GroupProperties::undo(){
 	setProperties(fgroup, fproperties);
+	InsertIcons::undo();
 }
 
 //-----------------------------------------------------------------------------------
@@ -443,7 +498,7 @@ DatabaseSettingsCommand::DatabaseSettingsCommand(Kdbx::Database::Settings::Ptr s
 		  QUndoCommand * parent) noexcept
 	:DatabaseCommand(model, parent),
 	  fsettings(std::move(settings)){
-	setText(QObject::tr("change database settings."));
+	setText(QObject::tr("Change database settings."));
 }
 
 

@@ -43,6 +43,7 @@
     <property name="title">
      <string>File</string>
     </property>
+    <addaction name="actionNew"/>
     <addaction name="actionOpen"/>
     <addaction name="separator"/>
     <addaction name="actionSave"/>
@@ -75,20 +76,44 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
-   <addaction name="actionAddEntry"/>
-   <addaction name="actionAddGroup"/>
-   <addaction name="actionDatabaseSettings"/>
+   <addaction name="actionNew"/>
+   <addaction name="actionOpen"/>
    <addaction name="actionSave"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
+  <widget class="QToolBar" name="toolBar">
+   <property name="windowTitle">
+    <string>toolBar</string>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="actionAddEntry"/>
+   <addaction name="actionAddGroup"/>
+   <addaction name="actionIcons"/>
+   <addaction name="actionDatabaseSettings"/>
+  </widget>
   <action name="actionOpen">
+   <property name="icon">
+    <iconset resource="icons/16x16/16x16.qrc">
+     <normaloff>:/kdbx/icons/16x16/o.png</normaloff>:/kdbx/icons/16x16/o.png</iconset>
+   </property>
    <property name="text">
     <string>Open</string>
+   </property>
+   <property name="toolTip">
+    <string>Open a database</string>
    </property>
   </action>
   <action name="actionGenerate_password">
    <property name="text">
     <string>Generate password</string>
+   </property>
+   <property name="toolTip">
+    <string>Generate a password</string>
    </property>
   </action>
   <action name="actionDsAsDefault">
@@ -175,6 +200,30 @@
    </property>
    <property name="text">
     <string>Close</string>
+   </property>
+  </action>
+  <action name="actionIcons">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="icons/16x16/16x16.qrc">
+     <normaloff>:/kdbx/icons/16x16/i.png</normaloff>:/kdbx/icons/16x16/i.png</iconset>
+   </property>
+   <property name="text">
+    <string>Icons</string>
+   </property>
+  </action>
+  <action name="actionNew">
+   <property name="icon">
+    <iconset resource="icons/16x16/16x16.qrc">
+     <normaloff>:/kdbx/icons/16x16/n.png</normaloff>:/kdbx/icons/16x16/n.png</iconset>
+   </property>
+   <property name="text">
+    <string>New</string>
+   </property>
+   <property name="toolTip">
+    <string>Creates a new database</string>
    </property>
   </action>
  </widget>

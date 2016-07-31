@@ -1,7 +1,8 @@
 #include "qtpasswindow.h"
 #include "ui_qtpasswindow.h"
 
-#include "opendialog.h"
+#include "ui/opendialog.h"
+#include "ui/newdialog.h"
 #include "qkdbxview.h"
 
 #include "passwordgenerator.h"
@@ -24,8 +25,9 @@ QtPassWindow::QtPassWindow(QWidget *parent) :
 	QMainWindow(parent),
 	executor(Executor::create(this)),
 	ui(new Ui::QtPassWindow),
-	openDbDialog(0),
-	openDialog(0),
+	openDbDialog(nullptr),
+	openDialog(nullptr),
+	newDialog(nullptr),
 	undoGroup(new QUndoGroup(this))
 {
 
@@ -80,6 +82,7 @@ void QtPassWindow::updateActions(DatabaseViewWidget* w){
 		ui->actionSave->setEnabled(false);
 		ui->actionSaveAs->setEnabled(false);
 		ui->actionClose->setEnabled(false);
+		ui->actionIcons->setEnabled(false);
 	}else{
 		undoGroup->setActiveStack(w->undoStack());
 		DatabaseViewWidget::StandardBarActions actions = w->standardBarActions();
@@ -89,6 +92,7 @@ void QtPassWindow::updateActions(DatabaseViewWidget* w){
 		ui->actionSave->setEnabled(actions.testFlag(DatabaseViewWidget::Save));
 		ui->actionSaveAs->setEnabled(actions.testFlag(DatabaseViewWidget::SaveAs));
 		ui->actionClose->setEnabled(true);
+		ui->actionIcons->setEnabled(actions.testFlag(DatabaseViewWidget::Icons));
 	}
 }
 
@@ -106,12 +110,19 @@ void QtPassWindow::on_actionOpen_triggered()
 }
 
 void QtPassWindow::onOpenDb_accepted(){
-	if (!openDbDialog) return;
+	assert(openDbDialog);
+
 	QStringList files = openDbDialog->selectedFiles();
 	if (!files.size()) return;
 
 	std::thread(&doOpenAsync, executor, this, files.at(0)).detach();
 }
+
+void QtPassWindow::onNewDb_accepted(){
+	assert(newDialog);
+
+}
+
 
 void QtPassWindow::tabActionsUpdated(){
 	DatabaseViewWidget* w = static_cast<DatabaseViewWidget*>(ui->tabWidget->currentWidget());
@@ -123,25 +134,21 @@ void QtPassWindow::tabActionsUpdated(){
 void QtPassWindow::openArgsFile(Executor::Ptr executor, QtPassWindow* ths, QString password, QString keyFilePath, QString filename){
 	try{
 		QByteArray tmpBuffer = filename.toUtf8();
-		std::unique_ptr<std::ifstream> file(new std::ifstream());
-		file->exceptions ( std::istream::failbit | std::istream::badbit | std::istream::eofbit );
-		file->open(std::string(tmpBuffer.data(), tmpBuffer.size()));
-
-		Kdbx::Database::File dbFile = Kdbx::Database::loadFromFile(std::move(file));
+		Kdbx::Database::File dbFile = Kdbx::Database::loadFromFile(std::string(tmpBuffer.data(), tmpBuffer.size()));
 
 		std::future<Kdbx::Database::Ptr> database;
 		if (dbFile.needsKey()){
 			Kdbx::CompositeKey key;
 			if (!password.isEmpty()){
 				QByteArray tmpBuffer = password.toUtf8();
-				key.addKey(Kdbx::CompositeKey::Key::fromPassword(SafeString<char>(tmpBuffer.data(), tmpBuffer.size())));
+				key.addKey(Kdbx::CompositeKey::Key::fromPassword(Kdbx::SafeString<char>(tmpBuffer.data(), tmpBuffer.size())));
 			}
 			if (!keyFilePath.isEmpty()){
 				QByteArray tmpBuffer = keyFilePath.toUtf8();
-				key.addKey(Kdbx::CompositeKey::Key::fromFile(SafeString<char>(tmpBuffer.data(), tmpBuffer.size())));
+				key.addKey(Kdbx::CompositeKey::Key::fromFile(Kdbx::SafeString<char>(tmpBuffer.data(), tmpBuffer.size())));
 			}
 
-			database = dbFile.getDatabase(key);
+			database = dbFile.getDatabase(std::move(key));
 		}else{
 			database = dbFile.getDatabase();
 		}
@@ -170,44 +177,42 @@ void QtPassWindow::openArgsFile(Executor::Ptr executor, QtPassWindow* ths, QStri
 
 void QtPassWindow::doOpenAsync(Executor::Ptr executor, QtPassWindow* ths, QString filename){
 	try{
-	QByteArray tmpBuffer = filename.toUtf8();
-	std::unique_ptr<std::ifstream> file(new std::ifstream());
-	file->exceptions ( std::istream::failbit | std::istream::badbit | std::istream::eofbit );
-	file->open(std::string(tmpBuffer.data(), tmpBuffer.size()));
+		QByteArray tmpBuffer = filename.toUtf8();
+		Kdbx::Database::File dbFile = Kdbx::Database::loadFromFile(std::string(tmpBuffer.data(), tmpBuffer.size()));
 
-	Kdbx::Database::File dbFile = Kdbx::Database::loadFromFile(std::move(file));
+		std::future<Kdbx::Database::Ptr> database;
 
-	std::future<Kdbx::Database::Ptr> database;
 
-	if (dbFile.needsKey()){
-		auto callOpenDialog	= [ths, filename](std::promise<Kdbx::CompositeKey> promise)->void{
-					OpenDialog* dlg = new OpenDialog(std::move(promise), ths);
-					dlg->show();
-				};
+		if (dbFile.needsKey()){
+			auto callOpenDialog	= [ths, filename](std::promise<Kdbx::CompositeKey> promise)->void{
+				OpenDialog* dlg = new OpenDialog(std::move(promise), ths);
+				dlg->setOpenDbName(filename);
+				dlg->show();
+			};
 
-		std::future<Kdbx::CompositeKey> key = executor->callback<Kdbx::CompositeKey>(callOpenDialog);
+			Kdbx::CompositeKey key = executor->callback<Kdbx::CompositeKey>(callOpenDialog).get();
 
-		database = dbFile.getDatabase(key.get());
-	}else{
-		database = dbFile.getDatabase();
-	}
+			database = dbFile.getDatabase(std::move(key));
+		}else{
+			database = dbFile.getDatabase();
+		}
 
-	auto newDb = [ths, &dbFile, filename, db=database.get()](std::promise<void> promise) mutable ->void{
-		QKdbxView* view = new QKdbxView(std::move(db), filename, ths);
-		ths->addWindow(view);
-		promise.set_value();
-	};
+		auto newDb = [ths, &dbFile, filename, db{database.get()}](std::promise<void> promise) mutable ->void{
+			QKdbxView* view = new QKdbxView(std::move(db), filename, ths);
+			ths->addWindow(view);
+			promise.set_value();
+		};
 
-	executor->callback<void>(newDb).get();
+		executor->callback<void>(newDb).get();
 
 	}catch(std::exception& e){
 
 		QString msg =QString::fromUtf8(e.what());
 		auto errMsg = [ths, filename, msg](std::promise<void> promise)->void{
-							QMessageBox::critical(ths, QObject::tr("Error opening database."),
-												  QObject::tr("Error opening file %1: %2").arg(filename).arg(msg));
-							promise.set_value();
-						};
+			QMessageBox::critical(ths, QObject::tr("Error opening database."),
+								  QObject::tr("Error opening file %1: %2").arg(filename).arg(msg));
+			promise.set_value();
+		};
 
 		executor->callback<void>(errMsg).get();
 	}
@@ -277,8 +282,8 @@ void QtPassWindow::on_actionExit_triggered(){
 	close();
 }
 
-void QtPassWindow::on_actionSave_triggered()
-{
+void QtPassWindow::on_actionSave_triggered(){
+
 	int index = ui->tabWidget->currentIndex();
 	if (index >= 0 && index < ui->tabWidget->count()){
 		DatabaseViewWidget* w = static_cast<DatabaseViewWidget*>(ui->tabWidget->widget(index));
@@ -306,4 +311,23 @@ void QtPassWindow::on_tabWidget_tabCloseRequested(int index){
 	if (index >= 0 && index < ui->tabWidget->count()){
 		removeWindow(index);
 	}
+}
+
+void QtPassWindow::on_actionIcons_triggered(){
+
+	int index = ui->tabWidget->currentIndex();
+	if (index >= 0 && index < ui->tabWidget->count()){
+		DatabaseViewWidget* w = static_cast<DatabaseViewWidget*>(ui->tabWidget->widget(index));
+		w->actionActivated(DatabaseViewWidget::Icons);
+	}
+}
+
+void QtPassWindow::on_actionNew_triggered(){
+
+	if (!newDialog){
+		newDialog = new NewDialog(this);
+		connect(newDialog, &NewDialog::accepted, this, &QtPassWindow::onNewDb_accepted);
+	}
+
+	newDialog->show();
 }

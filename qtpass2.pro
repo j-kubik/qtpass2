@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui
+QT       += core gui concurrent
 
 CONFIG += link_pkgconfig
 PKGCONFIG += keepass2pp libssl
@@ -18,63 +18,88 @@ TEMPLATE = app
 
 SOURCES += main.cpp\
         qtpasswindow.cpp \
-    opendialog.cpp \
     qkdbxdatabase.cpp \
     qkdbxgroup.cpp \
-    entryeditdialog.cpp \
     passwordchangedialog.cpp \
     sslentropy.cpp \
     passwordoptions.cpp \
     passwordgenerator.cpp \
     utils.cpp \
-    entryversionsdialog.cpp \
-    icondialog.cpp \
     undocommands.cpp \
-    versioneditor.cpp \
     qkdbxview.cpp \
-    newentrydialog.cpp \
     databasesettings.cpp \
-    qgroupcombo.cpp \
-    executor.cpp
+    executor.cpp \
+    localclipboard.cpp \
+    ui/grouppickerdialog.cpp \
+    ui/partial/groupeditor.cpp \
+    ui/groupeditordialog.cpp \
+    ui/partial/notificationframe.cpp \
+    ui/entryversionsdialog.cpp \
+    ui/partial/versioneditor.cpp \
+    ui/entryeditdialog.cpp \
+    ui/newentrydialog.cpp \
+    ui/newgroupdialog.cpp \
+    ui/partial/iconseditor.cpp \
+    ui/icondialog.cpp \
+    ui/iconbutton.cpp \
+    qmdiaction.cpp \
+    ui/opendialog.cpp \
+    ui/newdialog.cpp
 
 HEADERS  += qtpasswindow.h \
-    opendialog.h \
     qkdbxdatabase.h \
     qkdbxgroup.h \
-    entryeditdialog.h \
     passwordchangedialog.h \
     passwordoptions.h \
     passwordgenerator.h \
     utils.h \
-    entryversionsdialog.h \
     databaseviewwidget.h \
-    icondialog.h \
     undocommands.h \
-    versioneditor.h \
     qkdbxview.h \
-    newentrydialog.h \
     databasesettings.h \
-    qgroupcombo.h \
-    executor.h
+    executor.h \
+    localclipboard.h \
+    ui/grouppickerdialog.h \
+    ui/partial/groupeditor.h \
+    ui/groupeditordialog.h \
+    ui/partial/notificationframe.h \
+    ui/entryversionsdialog.h \
+    ui/partial/versioneditor.h \
+    ui/entryeditdialog.h \
+    ui/newentrydialog.h \
+    ui/newgroupdialog.h \
+    ui/partial/iconseditor.h \
+    ui/icondialog.h \
+    ui/iconbutton.h \
+    qmdiaction.h \
+    ui/opendialog.h \
+    ui/newdialog.h
 
 FORMS    += qtpasswindow.ui \
-    opendialog.ui \
-    entryeditdialog.ui \
     passwordchangedialog.ui \
     passwordoptions.ui \
     passwordgenerator.ui \
-    entryversionsdialog.ui \
-    icondialog.ui \
-    versioneditor.ui \
     qkdbxview.ui \
-    newentrydialog.ui \
-    databasesettings.ui
+    databasesettings.ui \
+    ui/grouppickerdialog.ui \
+    ui/partial/groupeditor.ui \
+    ui/groupeditordialog.ui \
+    ui/entryversionsdialog.ui \
+    ui/partial/versioneditor.ui \
+    ui/entryeditdialog.ui \
+    ui/newentrydialog.ui \
+    ui/newgroupdialog.ui \
+    ui/partial/iconseditor.ui \
+    ui/icondialog.ui \
+    ui/opendialog.ui \
+    ui/newdialog.ui
 
 QMAKE_RESOURCE_FLAGS += -no-compress
 
 RESOURCES += \
     icons/16x16/16x16.qrc \
-    icons/HighRes/HighRes.qrc
+    icons/HighRes/HighRes.qrc \
+    icons/32x32/32x32.qrc
 
 win32{
     DEFINES += WIN32_EVENTS_SSL_ENTROPY_SOURCE

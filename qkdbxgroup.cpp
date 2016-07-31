@@ -20,6 +20,8 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <QDateTime>
 
+using Kdbx::unused;
+
 QKdbxGroup::QKdbxGroup(QKdbxDatabase* database, QObject* parent) :
 	QAbstractTableModel(parent),
 	fgroup(database->root())

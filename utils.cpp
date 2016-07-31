@@ -47,10 +47,10 @@ std::vector<uint8_t> getRandomBytes(std::size_t size, QWidget* parent){
 	return buffer;
 }
 
-SafeVector<uint8_t> safeGetRandomBytes(std::size_t size, QWidget* parent){
+Kdbx::SafeVector<uint8_t> safeGetRandomBytes(std::size_t size, QWidget* parent){
 	while (ERR_get_error());
 
-	SafeVector<uint8_t> buffer(size);
+	Kdbx::SafeVector<uint8_t> buffer(size);
 
 	int result = RAND_bytes(reinterpret_cast<unsigned char*>(buffer.data()), size);
 	if (result != 1){

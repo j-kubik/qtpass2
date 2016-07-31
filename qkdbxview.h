@@ -35,7 +35,8 @@ class QKdbxView : public DatabaseViewWidget{
 	Q_OBJECT
 
 public:
-	explicit QKdbxView(Kdbx::Database::Ptr database, QString filename, QWidget *parent = 0);
+	QKdbxView(Kdbx::CompositeKey key, QWidget *parent = 0);
+	QKdbxView(Kdbx::Database::Ptr database, QString filename, QWidget *parent = 0);
 	~QKdbxView();
 
 	QIcon icon() const override;
@@ -46,6 +47,9 @@ public:
 	void actionActivated(StandardBarAction action) override;
 
 private slots:
+	void saveAs(QString filename);
+	void onSaveError(QString message);
+
 	void headerContextMenuColumnVisibility();
 	void headerContextMenuDontSort();
 	void headerSectionClicked(int index);
@@ -73,7 +77,7 @@ private:
 
 	Ui::QKdbxView *ui;
 	QKdbxDatabase* database;
-	QString filename;
+	QString ffilename;
 
 	QKdbxGroup* fgroup;
 	QList<QAction*> headerActions;

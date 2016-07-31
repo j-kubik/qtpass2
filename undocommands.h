@@ -32,14 +32,17 @@ protected:
 	inline Kdbx::Database::Entry* addEntry(Kdbx::Database::Group* group,
 										   Kdbx::Database::Entry::Ptr entry,
 										   size_t index);
+	inline void moveEntry(Kdbx::Database::Group* oldParent,
+						  size_t oldIndex,
+						  Kdbx::Database::Group* newParent,
+						  size_t newIndex);
 	inline Kdbx::Database::Entry::Ptr takeEntry(Kdbx::Database::Group* group,
 												size_t index);
 	inline Kdbx::Database::Group* addGroup(Kdbx::Database::Group* parent,
 										   Kdbx::Database::Group::Ptr group,
 										   size_t index);
-	inline bool moveGroup(Kdbx::Database::Group* oldParent,
+	inline void moveGroup(Kdbx::Database::Group* oldParent,
 						  size_t oldIndex,
-						  size_t count,
 						  Kdbx::Database::Group* newParent,
 						  size_t newIndex);
 	inline Kdbx::Database::Group::Ptr takeGroup(Kdbx::Database::Group* parent,
@@ -49,6 +52,7 @@ protected:
 	inline void swapSettings(Kdbx::Database::Settings::Ptr& settings);
 	inline void setTemplates(const Kdbx::Database::Group* templ, std::time_t changed);
 	inline void setRecycleBin(const Kdbx::Database::Group* bin, std::time_t changed);
+
 	QKdbxDatabase* fmodel;
 public:
 
@@ -59,7 +63,26 @@ public:
 						  QUndoCommand * parent = 0) noexcept;
 };
 
-class VersionUpdate: public DatabaseCommand{
+class InsertIcons: public DatabaseCommand{
+protected:
+	std::vector<std::pair<QIcon, Kdbx::CustomIcon::Ptr>> icons;
+public:
+	InsertIcons(QKdbxDatabase* model,
+			 QUndoCommand * parent = 0) noexcept;
+
+	InsertIcons(std::vector<std::pair<QIcon, Kdbx::CustomIcon::Ptr>> icons,
+			 QKdbxDatabase* model,
+			 QUndoCommand * parent = 0) noexcept;
+
+	void redo() override;
+	void undo() override;
+
+	void addIcon(Kdbx::CustomIcon::Ptr icon);
+	Kdbx::Uuid addIcon(QIcon qicon);
+
+};
+
+class VersionUpdate: public InsertIcons{
 private:
 	Kdbx::Database::Version::Ptr fversion;
 	size_t findex;
@@ -110,7 +133,7 @@ public:
 	void undo() override;
 };
 
-class EntryAdd: public DatabaseCommand{
+class EntryAdd: public InsertIcons{
 private:
 	Kdbx::Database::Entry::Ptr fentry;
 	size_t findex;
@@ -180,14 +203,13 @@ public:
 	void undo() override;
 };
 
-class GroupAdd: public DatabaseCommand{
+class GroupAdd: public InsertIcons{
 private:
 	Kdbx::Database::Group::Ptr fgroup;
 	size_t findex;
 	Kdbx::Database::Group* fparent;
 
 public:
-
 	GroupAdd(Kdbx::Database::Group* parentGroup,
 			 Kdbx::Database::Group::Ptr group,
 			 size_t index,
@@ -204,19 +226,17 @@ public:
 
 class GroupMove: public DatabaseCommand{
 private:
-	size_t fsourceIndex;
-	size_t fcount;
-	size_t fdestinationIndex;
-	Kdbx::Database::Group* fsourceParent;
-	Kdbx::Database::Group* fdestinationParent;
+	size_t foldIndex;
+	size_t fnewIndex;
+	Kdbx::Database::Group* foldParent;
+	Kdbx::Database::Group* fnewParent;
 
 public:
 
-	GroupMove(Kdbx::Database::Group* sourceParent,
-			 size_t sourceIndex,
-			 size_t count,
-			 Kdbx::Database::Group* destinationParent,
-			 size_t destinationIndex,
+	GroupMove(Kdbx::Database::Group* oldParent,
+			 size_t oldIndex,
+			 Kdbx::Database::Group* newParent,
+			 size_t newIndex,
 			 QKdbxDatabase* model,
 			 QUndoCommand * parent = 0) noexcept;
 
@@ -254,7 +274,7 @@ public:
 	void undo() override;
 };
 
-class GroupProperties: public DatabaseCommand{
+class GroupProperties: public InsertIcons{
 private:
 	const Kdbx::Database::Group* fgroup;
 	Kdbx::Database::Group::Properties::Ptr fproperties;

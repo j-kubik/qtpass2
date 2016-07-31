@@ -61,7 +61,7 @@ public:
 
 
 std::vector<uint8_t> getRandomBytes(std::size_t size, QWidget*);
-SafeVector<uint8_t> safeGetRandomBytes(std::size_t size, QWidget*);
+Kdbx::SafeVector<uint8_t> safeGetRandomBytes(std::size_t size, QWidget*);
 
 inline std::string utf8QString(QString s){
 	QByteArray tmp = s.toUtf8();

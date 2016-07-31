@@ -15,57 +15,22 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="QFrame" name="updateFrame">
-     <property name="styleSheet">
-      <string notr="true">background-color:lightyellow;</string>
-     </property>
+    <widget class="NotificationFrame" name="notifyPanel">
      <property name="frameShape">
-      <enum>QFrame::Box</enum>
+      <enum>QFrame::StyledPanel</enum>
      </property>
      <property name="frameShadow">
       <enum>QFrame::Raised</enum>
      </property>
-     <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="1,0,0">
-      <property name="leftMargin">
-       <number>8</number>
-      </property>
-      <property name="topMargin">
-       <number>1</number>
-      </property>
-      <property name="rightMargin">
-       <number>1</number>
-      </property>
-      <property name="bottomMargin">
-       <number>1</number>
-      </property>
-      <item>
-       <widget class="QLabel" name="label_11">
-        <property name="text">
-         <string>Database settings were changed...</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="reloadButton">
-        <property name="text">
-         <string>Reload</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="ignoreButton">
-        <property name="text">
-         <string>Ignore</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
+     <property name="text" stdset="0">
+      <string>Database settings were updated.</string>
+     </property>
     </widget>
    </item>
    <item>
     <widget class="QTabWidget" name="tabWidget">
      <property name="currentIndex">
-      <number>0</number>
+      <number>1</number>
      </property>
      <widget class="QWidget" name="generalTab">
       <attribute name="title">
@@ -186,9 +151,6 @@
            </property>
           </widget>
          </item>
-         <item row="0" column="1">
-          <widget class="QGroupCombo" name="recycleBinCombo"/>
-         </item>
          <item row="1" column="0">
           <widget class="QCheckBox" name="templatesBox">
            <property name="text">
@@ -197,7 +159,30 @@
           </widget>
          </item>
          <item row="1" column="1">
-          <widget class="QGroupCombo" name="templatesCombo"/>
+          <widget class="GroupButton" name="templatesButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>...</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="GroupButton" name="recycleBinButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>...</string>
+           </property>
+          </widget>
          </item>
         </layout>
        </item>
@@ -393,9 +378,15 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>QGroupCombo</class>
-   <extends>QComboBox</extends>
-   <header>qgroupcombo.h</header>
+   <class>NotificationFrame</class>
+   <extends>QFrame</extends>
+   <header>ui/partial/notificationframe.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>GroupButton</class>
+   <extends>QToolButton</extends>
+   <header>ui/grouppickerdialog.h</header>
   </customwidget>
  </customwidgets>
  <resources/>
@@ -419,64 +410,32 @@
   <connection>
    <sender>recycleBinBox</sender>
    <signal>toggled(bool)</signal>
-   <receiver>recycleBinCombo</receiver>
+   <receiver>recycleBinButton</receiver>
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>93</x>
-     <y>97</y>
+     <x>61</x>
+     <y>68</y>
     </hint>
     <hint type="destinationlabel">
-     <x>339</x>
-     <y>99</y>
+     <x>177</x>
+     <y>69</y>
     </hint>
    </hints>
   </connection>
   <connection>
    <sender>templatesBox</sender>
    <signal>toggled(bool)</signal>
-   <receiver>templatesCombo</receiver>
+   <receiver>templatesButton</receiver>
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>89</x>
-     <y>125</y>
+     <x>88</x>
+     <y>90</y>
     </hint>
     <hint type="destinationlabel">
-     <x>331</x>
-     <y>127</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>ignoreButton</sender>
-   <signal>clicked()</signal>
-   <receiver>updateFrame</receiver>
-   <slot>hide()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>475</x>
-     <y>21</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>338</x>
-     <y>10</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>reloadButton</sender>
-   <signal>clicked()</signal>
-   <receiver>updateFrame</receiver>
-   <slot>hide()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>401</x>
-     <y>23</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>420</x>
-     <y>10</y>
+     <x>182</x>
+     <y>97</y>
     </hint>
    </hints>
   </connection>

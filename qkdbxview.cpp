@@ -21,11 +21,13 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 #include "qkdbxdatabase.h"
 #include "qkdbxgroup.h"
 
-#include "entryeditdialog.h"
-#include "entryversionsdialog.h"
-
-#include "newentrydialog.h"
+#include "ui/newentrydialog.h"
+#include "ui/newgroupdialog.h"
+#include "ui/groupeditordialog.h"
+#include "ui/entryeditdialog.h"
+#include "ui/entryversionsdialog.h"
 #include "databasesettings.h"
+#include "ui/partial/iconseditor.h"
 
 #include <QSortFilterProxyModel>
 #include <QMessageBox>
@@ -33,16 +35,22 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 #include <QToolBar>
 #include <QFileDialog>
 
-#include <libkeepass2pp/database.h>
 #include <libkeepass2pp/compositekey.h>
 
+#include <chrono>
+#include <thread>
+
 //------------------------------------------------------------------------------
+
+QKdbxView::QKdbxView(Kdbx::CompositeKey key, QWidget *parent)
+	:QKdbxView(Kdbx::Database::Ptr(new Kdbx::Database(std::move(key))), QString(), parent)
+{}
 
 QKdbxView::QKdbxView(Kdbx::Database::Ptr db, QString filename, QWidget *parent) :
 	DatabaseViewWidget(parent),
 	ui(new Ui::QKdbxView),
 	database(new QKdbxDatabase(std::move(db), this)),
-	filename(filename),
+	ffilename(filename),
 	fgroup(new QKdbxGroup(database, this))
 {
 	ui->setupUi(this);
@@ -77,13 +85,6 @@ QKdbxView::QKdbxView(Kdbx::Database::Ptr db, QString filename, QWidget *parent) 
 		connect(action, &QAction::triggered, this, &QKdbxView::headerContextMenuColumnVisibility);
 		header->addAction(action);
 		headerActions.push_back(action);
-
-//		QAction* action = new QAction(groupHeaderPopup);
-//		action->setText(data.toString());
-//		action->setData(i);
-//		action->setCheckable(true);
-//		groupHeaderPopup->popupActions.append(action);
-//		groupHeaderPopup->addAction(action);
 	}
 
 	action = new QAction(this);
@@ -92,9 +93,6 @@ QKdbxView::QKdbxView(Kdbx::Database::Ptr db, QString filename, QWidget *parent) 
 	action = new QAction(tr("Don't sort"), this);
 	connect(action, &QAction::triggered, this, &QKdbxView::headerContextMenuDontSort);
 	header->addAction(action);
-
-	//groupHeaderPopup->addSeparator();
-	//groupHeaderPopup->removeSorting = groupHeaderPopup->addAction("Don't sort");
 
 	ui->groupView->addAction(ui->actionGroupProperties);
 	action = new QAction(this);
@@ -121,6 +119,7 @@ QKdbxView::QKdbxView(Kdbx::Database::Ptr db, QString filename, QWidget *parent) 
 	connect(database, &QKdbxDatabase::frozenChanged, this, &QWidget::setDisabled);
 	connect(database, &QKdbxDatabase::frozenChanged, this, &DatabaseViewWidget::actionsUpdated);
 	connect(database->undoStack(), &QUndoStack::cleanChanged, this, &DatabaseViewWidget::actionsUpdated);
+	connect(database, &QKdbxDatabase::saveError, this, &QKdbxView::onSaveError);
 
 	database->undoStack()->setClean();
 }
@@ -154,9 +153,9 @@ DatabaseViewWidget::StandardBarActions QKdbxView::standardBarActions(){
 	if (database->frozen())
 		return DatabaseViewWidget::StandardBarActions();
 
-	StandardBarActions result = Settings | SaveAs;
+	StandardBarActions result = Settings | Icons | SaveAs;
 
-	if (!undoStack()->isClean())
+	if (!undoStack()->isClean() && !ffilename.isEmpty())
 		result |= Save;
 
 	QKdbxDatabase::Group group = database->group(ui->groupView->currentIndex());
@@ -170,15 +169,15 @@ void QKdbxView::actionActivated(StandardBarAction action){
 
 	switch (action){
 	case Save:
-		database->saveAs(filename);
+		database->saveAs(ffilename);
 		break;
 	case SaveAs:{
 		QFileDialog* dlg = new QFileDialog(this);
 		dlg->setAttribute(Qt::WA_DeleteOnClose);
 		dlg->setAcceptMode(QFileDialog::AcceptSave);
 		dlg->setFileMode(QFileDialog::AnyFile);
-		dlg->selectFile(filename);
-		connect(dlg, &QFileDialog::fileSelected, database, &QKdbxDatabase::saveAs);
+		dlg->selectFile(ffilename);
+		connect(dlg, &QFileDialog::fileSelected, this, &QKdbxView::saveAs);
 		dlg->show();
 		}
 		break;
@@ -186,7 +185,7 @@ void QKdbxView::actionActivated(StandardBarAction action){
 		QKdbxDatabase::Group group = database->group(ui->groupView->currentIndex());
 		if (!group)
 			return;
-		group.addGroup(Kdbx::Database::Group::Ptr(new Kdbx::Database::Group()), group.groups());
+		(new NewGroupDialog(group, this))->show();
 		break;
 	}
 	case NewEntry:{
@@ -198,8 +197,20 @@ void QKdbxView::actionActivated(StandardBarAction action){
 	}
 	case Settings:
 		(new DatabaseSettings(database, this))->show();
+		break;
+	case Icons:
+		(new IconsEditorDialog(database, this))->show();
 	}
 
+}
+
+void QKdbxView::saveAs(QString filename){
+	ffilename = filename;
+	database->saveAs(ffilename);
+}
+
+void QKdbxView::onSaveError(QString message){
+	QMessageBox::critical(this, tr("Error saving file."), tr("Error saving file %1.\n%2").arg(ffilename).arg(message));
 }
 
 void QKdbxView::headerContextMenuColumnVisibility(){
@@ -224,7 +235,7 @@ void QKdbxView::headerContextMenuDontSort(){
 }
 
 void QKdbxView::headerSectionClicked(int index){
-	unused(index);
+	Kdbx::unused(index);
 	QHeaderView* header = ui->entriesView->header();
 	header->setSortIndicatorShown(true);
 	ui->entriesView->setSortingEnabled(true);
@@ -278,7 +289,16 @@ void QKdbxView::on_actionDeleteGroup_triggered()
 }
 
 void QKdbxView::on_actionGroupProperties_triggered(){
-	QMessageBox::warning(this, "Not implemented yet.", "Sorry, not implemented yet.");
+	QModelIndex index = ui->groupView->currentIndex();
+	if (!index.isValid()) return;
+
+	QKdbxDatabase::Group group = database->group(index);
+	if (!group.parent())
+		return;
+
+	(new GroupEditorDialog(group, this))->show();
+
+	//QMessageBox::warning(this, "Not implemented yet.", "Sorry, not implemented yet.");
 }
 
 void QKdbxView::on_actionEntryEdit_triggered()

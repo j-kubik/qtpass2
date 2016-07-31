@@ -10,6 +10,7 @@
 
 
 class OpenDialog;
+class NewDialog;
 
 namespace Ui {
 class QtPassWindow;
@@ -26,6 +27,7 @@ public:
 private slots:
 	void on_actionOpen_triggered();
 	void onOpenDb_accepted();
+	void onNewDb_accepted();
 
 	void on_actionGenerate_password_triggered();
 
@@ -49,6 +51,10 @@ private slots:
 
 	void on_tabWidget_tabCloseRequested(int index);
 
+	void on_actionIcons_triggered();
+
+	void on_actionNew_triggered();
+
 private:
 	static void openArgsFile(Executor::Ptr callbacks, QtPassWindow* ths, QString password, QString keyFilePath, QString database);
 	static void doOpenAsync(Executor::Ptr callbacks, QtPassWindow* ths, QString filename);
@@ -63,6 +69,7 @@ private:
 	Ui::QtPassWindow *ui;
 	QFileDialog* openDbDialog;
 	OpenDialog* openDialog;
+	NewDialog* newDialog;
 
 	QUndoGroup* undoGroup;
 };

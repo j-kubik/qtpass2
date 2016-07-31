@@ -17,21 +17,28 @@ along with QtPass2.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "qkdbxdatabase.h"
 #include "undocommands.h"
+#include "utils.h"
 
 #include <QMessageBox>
 
 #include <QMimeData>
 #include <QPixmap>
 #include <QBuffer>
+#include <QtConcurrentRun>
+#include <QFutureWatcher>
 
-const QString QKdbxDatabase::dataMimeType = "application/x-internal-group-pointer";
+#include <exception>
+
+using namespace Kdbx;
+
+const QString QKdbxDatabase::dataMimeType = "application/x-keepass-uuid-list";
 
 QKdbxDatabase::Icons::Icons(QKdbxDatabase* database) noexcept
 		:QAbstractListModel(database),
 		  fdatabase(database)
 {
-	for (size_t i=0; i<fdatabase->get()->customIcons(); ++i){
-		const Kdbx::CustomIcon::Ptr& icon = fdatabase->get()->customIcon(i);
+	for (size_t i=0; i<fdatabase->get()->icons(); ++i){
+		const Kdbx::CustomIcon::Ptr& icon = fdatabase->get()->icon(i);
 		entries.emplace(icon->uuid(), Icons::customQIcon(icon));
 	}
 
@@ -39,27 +46,34 @@ QKdbxDatabase::Icons::Icons(QKdbxDatabase* database) noexcept
 
 void QKdbxDatabase::Icons::reset(Kdbx::Database* newDatabase){
 	beginResetModel();
-	for (size_t i=0; i<newDatabase->customIcons(); ++i){
-		const Kdbx::CustomIcon::Ptr& icon = newDatabase->customIcon(i);
+	for (size_t i=0; i<newDatabase->icons(); ++i){
+		const Kdbx::CustomIcon::Ptr& icon = newDatabase->icon(i);
 		entries.emplace(icon->uuid(), Icons::customQIcon(icon));
 	}
 	endResetModel();
 }
 
-Kdbx::Icon QKdbxDatabase::Icons::insertQIcon(QIcon icon, Kdbx::CustomIcon::Ptr customIcon){
-	Kdbx::Icon result;
-	if (fdatabase->get()->customIconIndex(customIcon->uuid()) < 0){
-		entries.emplace(customIcon->uuid(), std::move(icon));
-		int idx = fdatabase->get()->customIcons();
-		beginInsertRows(QModelIndex(), idx, idx);
-		result = fdatabase->addCustomIcon(std::move(customIcon));
-		endInsertRows();
-	}else{
-		result = Kdbx::Icon(std::move(customIcon));
-	}
-
-	return result;
+void QKdbxDatabase::Icons::insertIcon(QIcon icon, Kdbx::CustomIcon::Ptr customIcon){
+	entries.emplace(customIcon->uuid(), std::move(icon));
+	int idx = fdatabase->get()->icons();
+	beginInsertRows(QModelIndex(), idx, idx);
+	fdatabase->DatabaseModel::insertIcon(std::move(customIcon));
+	endInsertRows();
 }
+
+void QKdbxDatabase::Icons::insertIcon(Kdbx::CustomIcon::Ptr customIcon){
+	insertIcon(customQIcon(customIcon), customIcon);
+}
+
+
+void QKdbxDatabase::Icons::eraseIcon(size_t index){
+	beginRemoveRows(QModelIndex(), index, index);
+	entries.erase(fdatabase->get()->icon(index)->uuid());
+	fdatabase->DatabaseModel::eraseIcon(index);
+	endRemoveRows();
+
+}
+
 
 int QKdbxDatabase::Icons::rowCount(const QModelIndex &) const{
 	return entries.size();
@@ -67,55 +81,42 @@ int QKdbxDatabase::Icons::rowCount(const QModelIndex &) const{
 
 QVariant QKdbxDatabase::Icons::data(const QModelIndex &index, int role) const{
 	if (role == Qt::DecorationRole){
-		return entries.at(fdatabase->get()->customIcon(index.row())->uuid());
+		return entries.at(fdatabase->get()->icon(index.row())->uuid());
 	}
 	return QVariant();
 }
 
-//int QKdbxDatabase::Icons::index(const Uuid& uuid) const noexcept{
-//	for (int i=0; i<fdatabase->customIcons(); ++i){
-//		if (fdatabase->customIcon(i)->uuid() == uuid)
-//			return i;
-//	}
-//	return -1;
-//}
-
-Uuid QKdbxDatabase::Icons::insert(QIcon icon){
-	Uuid result(Uuid::generate());
-	insert(icon, result);
-	return result;
-}
-
-void QKdbxDatabase::Icons::insert(QIcon icon, Uuid uuid){
-	//entries.reserve(entries.size() + 1);
-	//entries.
-
-	QPixmap p(icon.pixmap(icon.actualSize(QSize(64,64))));
-	QBuffer buffer;
-	if (p.save(&buffer, "PNG") == false){
-		QByteArray errMsg = tr("Failed saving icon to database.").toUtf8();
-		throw std::runtime_error(std::string(errMsg.data(), errMsg.size()));
-	}
-
-	QByteArray& buf = buffer.buffer();
-	Kdbx::CustomIcon::Ptr customIcon(new Kdbx::CustomIcon(std::move(uuid), std::vector<uint8_t>(buf.begin(), buf.end())));
-
-	insertQIcon(icon, customIcon);
+Uuid QKdbxDatabase::Icons::add(QIcon icon){
+	return fdatabase->insertIcon(std::move(icon));
 }
 
 QIcon QKdbxDatabase::Icons::icon(Kdbx::Icon i) const noexcept{
 	switch (i.type()){
+	case Kdbx::Icon::Type::Custom:{
+		auto result = entries.find(i.custom()->uuid());
+		if (result != entries.end())
+			return result->second;
+	}
 	case Kdbx::Icon::Type::Null:
 	default:
 		i = Kdbx::StandardIcon::Key;
 	case Kdbx::Icon::Type::Standard:{
 		return Icons::standardIcon(i.standard());
 	}
-	case Kdbx::Icon::Type::Custom:
-		// ToDo: check if custom icon doesn't exists?
-		return entries.at(i.custom()->uuid());
+
 	}
 }
+
+Kdbx::Icon QKdbxDatabase::Icons::kdbxIcon(const QModelIndex& index){
+	if (index.isValid())
+		return kdbxIcon(index.row());
+	return Kdbx::Icon();
+}
+
+Kdbx::Icon QKdbxDatabase::Icons::kdbxIcon(int index){
+	return Kdbx::Icon(fdatabase->get()->icon(index));
+}
+
 
 QIcon QKdbxDatabase::Icons::customQIcon(const Kdbx::CustomIcon::Ptr& customIcon){
 	QPixmap p;
@@ -137,18 +138,36 @@ QIcon QKdbxDatabase::Icons::standardIcon(Kdbx::StandardIcon icon) noexcept{
 	return result;
 }
 
+Kdbx::CustomIcon::Ptr QKdbxDatabase::Icons::customIcon(QIcon icon){
+	QPixmap p(icon.pixmap(icon.actualSize(QSize(64,64))));
+	QBuffer buffer;
+	if (p.save(&buffer, "PNG") == false){
+		QByteArray errMsg = tr("Failed saving icon to database.").toUtf8();
+		throw std::runtime_error(std::string(errMsg.data(), errMsg.size()));
+	}
+
+	QByteArray& buf = buffer.buffer();
+	return Kdbx::CustomIcon::Ptr(new Kdbx::CustomIcon(Uuid::generate(), std::vector<uint8_t>(buf.begin(), buf.end())));
+}
+
 //---------------------------------------------------------------------------------------
 
-Kdbx::Database::Ptr getdb(std::future<Kdbx::Database::Ptr> future){
-	return future.get();
+std::exception_ptr QKdbxDatabase::saveAsAsync(std::shared_ptr<Kdbx::Database> database, QString filename){
+	try{
+		database->saveToFile(utf8QString(filename));
+	} catch(...){
+		return std::current_exception();
+	}
+	return std::exception_ptr();
 }
 
 QKdbxDatabase::QKdbxDatabase(Kdbx::Database::Ptr database, QObject* parent)
 	:QAbstractItemModel(parent),
-	  fdatabase(std::move(database)),
+	  fdatabase(database.release()),
 	  ficons(new Icons(this)),
 	  fundoStack(new QUndoStack(this)),
-	  ffrozen(false)
+	  finsertIconsCommand(nullptr),
+	  ffreezeCount(0)
 {}
 
 QKdbxDatabase::~QKdbxDatabase() noexcept{}
@@ -157,27 +176,22 @@ Kdbx::Database* QKdbxDatabase::getDatabase() const noexcept{
 	return fdatabase.get();
 }
 
-QModelIndex QKdbxDatabase::rootIndex() const noexcept{
-	return index(get()->root(), 0, 0);
+QModelIndex QKdbxDatabase::rootIndex(int column) const noexcept{
+	return index(get()->root(), 0, column);
 }
 
 QModelIndex QKdbxDatabase::index(const Kdbx::Database::Group* group, int column) const noexcept{
 	if (!group)
-		return index(static_cast<Kdbx::Database::Group*>(nullptr), 0, column);
+		return QModelIndex();
 
-	const Kdbx::Database::Group* parent = group->parent();
-	if (!parent)
+	if (!group->parent())
 		return index(group, 0, column);
 
-	for (size_t i=0; i<parent->groups(); ++i){
-		if (parent->group(i) == group)
-			return index(group, i, column);
-	}
-	assert(false);
-	return QModelIndex(); // This should not happen...
+	return index(group, group->index(), column);
 }
 
 QModelIndex QKdbxDatabase::index(const Kdbx::Database::Group* group, int row, int column) const noexcept{
+	assert(group != nullptr);
 	return createIndex(row, column, const_cast<Kdbx::Database::Group*>(group));
 }
 
@@ -216,11 +230,13 @@ void QKdbxDatabase::moveGroup(Group group, Group newParent, size_t newIndex){
 	assert(group.parent() != newParent || (idx != newIndex && idx+1 != newIndex));
 	assert(!newParent->ancestor(group.get()));
 
-	fundoStack->push(new GroupMove(group.parent().item(), group.index(), 1, newParent.item(), newIndex, this));
+	fundoStack->push(new GroupMove(group.parent().item(), group.index(), newParent.item(), newIndex, this));
 }
 
 void QKdbxDatabase::setProperties(const Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr properties){
-	fundoStack->push(new GroupProperties(group, std::move(properties), this));
+	finsertIconsCommand = new GroupProperties(group, std::move(properties), this);
+	fundoStack->push(finsertIconsCommand);
+	finsertIconsCommand = nullptr;
 }
 
 void QKdbxDatabase::setSettings(Kdbx::Database::Settings::Ptr settings){
@@ -228,17 +244,21 @@ void QKdbxDatabase::setSettings(Kdbx::Database::Settings::Ptr settings){
 }
 
 void QKdbxDatabase::setTemplates(const Kdbx::Database::Group* templ, std::time_t changed){
-	fundoStack->push(new SetTemplatesCommand(templ, changed, this));
+	if (templ != get()->templates())
+		fundoStack->push(new SetTemplatesCommand(templ, changed, this));
 }
 
 void QKdbxDatabase::setRecycleBin(const Kdbx::Database::Group* bin, std::time_t changed){
-	fundoStack->push(new SetRecycleBinCommand(bin, changed, this));
+	if (bin != get()->recycleBin())
+		fundoStack->push(new SetRecycleBinCommand(bin, changed, this));
 }
 
 
 Kdbx::Database::Version* QKdbxDatabase::addVersion(Kdbx::Database::Entry* entry, Kdbx::Database::Version::Ptr version, size_t index){
 	VersionUpdate* result = new VersionUpdate(entry, std::move(version), index, this);
+	finsertIconsCommand = result;
 	fundoStack->push(result);
+	finsertIconsCommand = nullptr;
 	assert(result->addedVersion() != nullptr);
 	return result->addedVersion();
 }
@@ -256,13 +276,21 @@ Kdbx::Database::Version::Ptr QKdbxDatabase::takeVersion(Kdbx::Database::Entry* e
 
 Kdbx::Database::Entry* QKdbxDatabase::addEntry(Kdbx::Database::Group* group, Kdbx::Database::Entry::Ptr entry, size_t index){
 	EntryAdd* result = new EntryAdd(group, std::move(entry), index, this);
+	finsertIconsCommand = result;
 	fundoStack->push(result);
+	finsertIconsCommand = nullptr;
 	assert(result->addedEntry() != nullptr);
 	return result->addedEntry();
 }
 
 void QKdbxDatabase::removeEntry(Kdbx::Database::Group* group, size_t index){
-	fundoStack->push(new EntryTake(group, index, this));
+	if (get()->settings().recycleBinEnabled &&
+		get()->recycleBin() &&
+		get()->recycleBin() != group){
+		fundoStack->push(new EntryMove(group, index, getDatabase()->recycleBin(), getDatabase()->recycleBin()->entries(), this));
+	}else{
+		fundoStack->push(new EntryTake(group, index, this));
+	}
 }
 
 Kdbx::Database::Entry::Ptr QKdbxDatabase::takeEntry(Kdbx::Database::Group* group, size_t index){
@@ -274,7 +302,9 @@ Kdbx::Database::Entry::Ptr QKdbxDatabase::takeEntry(Kdbx::Database::Group* group
 
 Kdbx::Database::Group* QKdbxDatabase::addGroup(Kdbx::Database::Group* parent, Kdbx::Database::Group::Ptr group, size_t index){
 	GroupAdd* result = new GroupAdd(parent, std::move(group), index, this);
+	finsertIconsCommand = result;
 	fundoStack->push(result);
+	finsertIconsCommand = nullptr;
 	assert(result->addedGroup() != nullptr);
 	return result->addedGroup();
 }
@@ -289,10 +319,35 @@ Kdbx::Database::Group::Ptr QKdbxDatabase::takeGroup(Kdbx::Database::Group* paren
 	return result->groupCopy();
 }
 
-Kdbx::Icon QKdbxDatabase::addCustomIcon(Kdbx::CustomIcon::Ptr icon){
-	QIcon qicon = Icons::customQIcon(icon);
-	return ficons->insertQIcon(std::move(qicon), std::move(icon));
+void QKdbxDatabase::insertIcon(Kdbx::CustomIcon::Ptr icon){
+	if (finsertIconsCommand){
+		finsertIconsCommand->addIcon(std::move(icon));
+	}else{
+		finsertIconsCommand = new InsertIcons(this);
+		finsertIconsCommand->addIcon(std::move(icon));
+		fundoStack->push(finsertIconsCommand);
+		finsertIconsCommand = nullptr;
+	}
 }
+
+void QKdbxDatabase::eraseIcon(size_t index){
+#warning This needs to become an action too...
+	ficons->eraseIcon(index);
+}
+
+Uuid QKdbxDatabase::insertIcon(QIcon icon){
+	Uuid result;
+	if (finsertIconsCommand){
+		result = finsertIconsCommand->addIcon(std::move(icon));
+	}else{
+		finsertIconsCommand = new InsertIcons(this);
+		result = finsertIconsCommand->addIcon(std::move(icon));
+		fundoStack->push(finsertIconsCommand);
+		finsertIconsCommand = nullptr;
+	}
+	return result;
+}
+
 
 Kdbx::Database::Version* QKdbxDatabase::addVersionCommand(Kdbx::Database::Entry* entry, Kdbx::Database::Version::Ptr version, size_t index){
 	emit beginVersionAdd(this->entry(entry), index);
@@ -317,6 +372,12 @@ Kdbx::Database::Entry* QKdbxDatabase::addEntryCommand(Kdbx::Database::Group* gro
 	return result;
 }
 
+void QKdbxDatabase::moveEntryCommand(Kdbx::Database::Group* oldParent, size_t oldIndex, Kdbx::Database::Group* newParent, size_t newIndex){
+	emit beginEntryMove(group(oldParent), oldIndex, group(newParent), newIndex);
+	Base::moveEntry(oldParent, oldIndex, newParent, newIndex);
+	emit endEntryMove(group(oldParent), oldIndex, group(newParent), newIndex);
+}
+
 Kdbx::Database::Entry::Ptr QKdbxDatabase::takeEntryCommand(Kdbx::Database::Group* group, size_t index){
 	emit beginEntryRemove(this->group(group), index);
 	Kdbx::Database::Entry::Ptr result = Base::takeEntry(group, index);
@@ -328,54 +389,29 @@ Kdbx::Database::Entry::Ptr QKdbxDatabase::takeEntryCommand(Kdbx::Database::Group
 
 Kdbx::Database::Group* QKdbxDatabase::addGroupCommand(Kdbx::Database::Group* parent, Kdbx::Database::Group::Ptr group, size_t idx){
 	emit beginInsertRows(index(parent,0), idx, idx);
-	emit beginGroupAdd(this->group(parent), idx);
 	Kdbx::Database::Group* result = Base::addGroup(parent, std::move(group), idx);
-	emit endGroupAdd(this->group(parent), idx);
 	emit endInsertRows();
 	return result;
 }
 
-bool QKdbxDatabase::moveGroupCommand(Kdbx::Database::Group* oldParent, size_t oldIndex, size_t count, Kdbx::Database::Group* newParent, size_t newIndex){
-	if (const_cast<QKdbxDatabase*>(this)->beginMoveRows(index(oldParent, 0), oldIndex, oldIndex+count-1, index(newParent, 0), newIndex) == false)
-		return false;
-
-	if (oldParent == newParent && oldIndex < newIndex){
-		for (size_t i=0; i<count; i++){
-			emit beginGroupRemove(this->group(oldParent), oldIndex);
-			Kdbx::Database::Group::Ptr tmp = DatabaseModelCRTP::takeGroup(oldParent, oldIndex);
-			emit endGroupRemove(this->group(oldParent), oldIndex);
-			emit beginGroupAdd(this->group(newParent), newIndex-1);
-			DatabaseModelCRTP::addGroup(newParent, std::move(tmp), newIndex-1);
-			emit endGroupAdd(this->group(newParent), newIndex-1);
-		}
-	}else{
-		for (size_t i=0; i<count; i++){
-			emit beginGroupRemove(group(oldParent), oldIndex);
-			Kdbx::Database::Group::Ptr tmp = DatabaseModelCRTP::takeGroup(oldParent, oldIndex);
-			emit endGroupRemove(group(oldParent), oldIndex);
-			emit beginGroupAdd(group(newParent), newIndex);
-			DatabaseModelCRTP::addGroup(newParent, std::move(tmp), newIndex);
-			emit endGroupAdd(group(newParent), newIndex-1);
-			newIndex++;
-		}
-	}
-	const_cast<QKdbxDatabase*>(this)->endMoveRows();
-	return true;
+void QKdbxDatabase::moveGroupCommand(Kdbx::Database::Group* oldParent, size_t oldIndex, Kdbx::Database::Group* newParent, size_t newIndex){
+	beginMoveRows(index(oldParent, 0), oldIndex, oldIndex, index(newParent, 0), newIndex);
+	Base::moveGroup(oldParent, oldIndex, newParent, newIndex);
+	endMoveRows();
 }
 
 
 Kdbx::Database::Group::Ptr QKdbxDatabase::takeGroupCommand(Kdbx::Database::Group* parent, size_t idx){
-	emit const_cast<QKdbxDatabase*>(this)->beginRemoveRows(index(parent, 0), idx, idx);
-	emit beginGroupRemove(group(parent), idx);
+	emit beginRemoveRows(index(parent, 0), idx, idx);
 	Kdbx::Database::Group::Ptr result = DatabaseModelCRTP::takeGroup(parent, idx);
-	emit endGroupRemove(group(parent), idx);
-	emit const_cast<QKdbxDatabase*>(this)->endRemoveRows();
+	emit endRemoveRows();
 	return result;
 }
 
 void QKdbxDatabase::setPropertiesCommand(const Kdbx::Database::Group* group, Kdbx::Database::Group::Properties::Ptr& properties){
 	DatabaseModelCRTP::swapProperties(group, properties);
-	emit const_cast<QKdbxDatabase*>(this)->dataChanged(index(group, 0), index(group, columnCount(QModelIndex())-1));
+	emit dataChanged(index(group, 0), index(group, columnCount(QModelIndex())-1));
+	emit groupPropertiesChanged(this->group(group));
 }
 
 void QKdbxDatabase::swapSettingsCommand(Kdbx::Database::Settings::Ptr& settings){
@@ -630,51 +666,55 @@ bool QKdbxDatabase::dropMimeData(const QMimeData * data, Qt::DropAction action, 
 	return true;
 }
 
-//bool QKdbxDatabase::moveRows(const QModelIndex &sourceParent, int sourceRow, int count, const QModelIndex &destinationParent, int destinationChild){
-//	if (!sourceParent.isValid() || !destinationParent.isValid())
-//		return false;
-
-//	Group source = group(sourceParent);
-//	if (source.groups() < size_t(sourceRow+count))
-//		return false;
-//	Group destination = group(destinationParent);
-//	if (destination.groups() < size_t(destinationChild))
-//		return false;
-
-//	undoStack()->push(new GroupMove(source.item(), sourceRow, count, destination.item(), destinationChild, this));
-//	return true;
-//}
 QString QKdbxDatabase::entryString(const Kdbx::Database::Version* version, const char* name) noexcept{
 	SafeString<char> tmp = entryStringBuffer(version, name).plainString();
 	return QString::fromUtf8(tmp.c_str(), tmp.size());
 }
 
-XorredBuffer QKdbxDatabase::entryStringBuffer(const Kdbx::Database::Version* version, const char* name) noexcept{
+Kdbx::XorredBuffer QKdbxDatabase::entryStringBuffer(const Kdbx::Database::Version* version, const char* name) noexcept{
 	auto pos = version->strings.find(name);
 	if (pos != version->strings.end()){
 		return pos->second;
 	}
-	return XorredBuffer();
+	return Kdbx::XorredBuffer();
 }
 
 void QKdbxDatabase::saveAs(QString filename){
-	QMessageBox::information(0, "Saving file...", filename);
+	QFutureWatcher<std::exception_ptr>* watcher = new QFutureWatcher<std::exception_ptr>(this);
+	connect(watcher, &QFutureWatcher<std::exception_ptr>::finished, this, &QKdbxDatabase::onFutureFinished);
+	connect(watcher, &QFutureWatcher<std::exception_ptr>::finished, watcher, &QObject::deleteLater);
+
+	bool thawed = !frozen();
+	++ffreezeCount;
+	watcher->setFuture(QtConcurrent::run(&QKdbxDatabase::saveAsAsync, fdatabase, filename));
+
+	if (thawed && frozen())
+		emit frozenChanged(true);
 }
 
-void QKdbxDatabase::freeze(){
-	if (ffrozen != true){
-		ffrozen = true;
-		emit frozenChanged(ffrozen);
+
+void QKdbxDatabase::onFutureFinished(){
+	assert(ffreezeCount > 0);
+	--ffreezeCount;
+
+	if (ffreezeCount == 0)
+		emit frozenChanged(false);
+
+	auto future = dynamic_cast<QFutureWatcher<std::exception_ptr>*>(sender());
+	if (!future)
+		return;
+
+	std::exception_ptr excpt = future->result();
+	if (!excpt)
+		return;
+
+	try{
+		std::rethrow_exception(excpt);
+	}catch(std::exception& e){
+		emit saveError(QString::fromUtf8(e.what()));
 	}
-}
 
-void QKdbxDatabase::unfreeze(){
-	if (ffrozen != false){
-		ffrozen = false;
-		emit frozenChanged(ffrozen);
-	}
 }
-
 
 
 

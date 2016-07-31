@@ -1,0 +1,10 @@
+<RCC>
+    <qresource prefix="/kdbx/icons/32x32">
+        <file>r.png</file>
+        <file>x.png</file>
+        <file>i.png</file>
+        <file>n.png</file>
+        <file>s.png</file>
+        <file>o.png</file>
+    </qresource>
+</RCC>
